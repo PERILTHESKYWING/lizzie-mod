@@ -474,15 +474,6 @@ public class Menu extends JMenuBar {
         });
     fileMenu.add(loadKomi);
 
-    //    resume.addActionListener(
-    //        new ActionListener() {
-    //          @Override
-    //          public void actionPerformed(ActionEvent e) {
-    //            //  Lizzie.board.resumePreviousGame();
-    //            Lizzie.frame.resumeFile();
-    //          }
-    //        });
-
     fileMenu.addSeparator();
 
     final JFontMenuItem forceExit =
@@ -5155,6 +5146,12 @@ public class Menu extends JMenuBar {
             Lizzie.frame.openKataGoAutoSetup();
           }
         });
+
+    final JFontMenuItem updateModel =
+        new JFontMenuItem(resourceBundle.getString("ModelUpdate.menu"));
+    updateModel.putClientProperty(AutoAnalyzeMenu.ACTION_PROPERTY, "menu.updateModel");
+    settings.add(updateModel);
+    updateModel.addActionListener(e -> Lizzie.frame.updateKataGoModel());
 
     final JFontMenuItem comprehensiveSettings =
         new JFontMenuItem(

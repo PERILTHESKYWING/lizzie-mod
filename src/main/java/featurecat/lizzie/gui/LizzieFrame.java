@@ -827,7 +827,6 @@ public class LizzieFrame extends JFrame {
         new MouseWheelListener() {
           @Override
           public void mouseWheelMoved(MouseWheelEvent e) {
-            // TODO Auto-generated method stub
             if (e.getWheelRotation() > 0) {
               Input.redo();
             } else if (e.getWheelRotation() < 0) {
@@ -964,7 +963,6 @@ public class LizzieFrame extends JFrame {
         new MouseWheelListener() {
           @Override
           public void mouseWheelMoved(MouseWheelEvent e) {
-            // TODO Auto-generated method stub
             if (clickOrder != -1) {
               if (e.getWheelRotation() > 0) {
                 doBranch(1);
@@ -1850,7 +1848,6 @@ public class LizzieFrame extends JFrame {
   }
 
   private void setBlunderSort() {
-    // TODO Auto-generated method stub
     if (Lizzie.config.blunderTabelOnlyAfter) {
       blunderSortNum = Lizzie.config.blunderSortNumAF;
       blunderIsSorted = Lizzie.config.blunderIsSortedAF;
@@ -2037,7 +2034,6 @@ public class LizzieFrame extends JFrame {
   }
 
   private void setTabelStyle(JTable table, int column0, int column1, int column2) {
-    // TODO Auto-generated method stub
 
     table.getColumnModel().getColumn(0).setPreferredWidth(column0);
     table.getColumnModel().getColumn(2).setPreferredWidth(column1);
@@ -2114,6 +2110,18 @@ public class LizzieFrame extends JFrame {
   private BoardHistoryNode currentGameRoot() {
     BoardHistoryList history = currentHistory();
     return history == null ? null : history.getStart();
+  }
+
+  void updateKataGoModel() {
+    new KataGoModelUpgradeFlow(this, this::switchKataGoWeight).start();
+  }
+
+  private void switchKataGoWeight(java.nio.file.Path weight) {
+    SwingUtilities.invokeLater(
+        () -> {
+          if (kataGoAutoSetupDialog != null) kataGoAutoSetupDialog.switchToDownloadedWeight(weight);
+        });
+    openKataGoAutoSetup();
   }
 
   void toggleOpeningExplorer() {
@@ -2233,7 +2241,6 @@ public class LizzieFrame extends JFrame {
   }
 
   public void setCommentPaneContent() {
-    // TODO Auto-generated method stub
     if (!Lizzie.config.showComment) {
       hideCommentPanel();
       return;
@@ -2607,7 +2614,6 @@ public class LizzieFrame extends JFrame {
       mainPanel.addMouseWheelListener(input);
       mainPanel.removeMouseListener(input2);
       mainPanel.removeMouseWheelListener(input2);
-      // varTreePane.addMouseWheelListener(input);
       mainPanel.removeKeyListener(input2);
       varTreeScrollPane.addKeyListener(input);
       noInput = false;
@@ -2633,7 +2639,6 @@ public class LizzieFrame extends JFrame {
       mainPanel.addMouseWheelListener(input2);
       mainPanel.addKeyListener(input2);
       varTreeScrollPane.removeKeyListener(input);
-      // varTreePane.removeMouseWheelListener(input);
       noInput = true;
     }
     if (forEngineGame) mainPanel.addKeyListener(gtpShortKey);
@@ -3386,7 +3391,7 @@ public class LizzieFrame extends JFrame {
     if (Lizzie.config.showVariationGraph) Lizzie.config.toggleShowVariationGraph();
     if (Lizzie.config.showWinrateGraph) Lizzie.config.toggleShowWinrate();
     if (!windowIsMaximized) {
-      int minlength = Math.min(getWidth(), Lizzie.frame.getHeight() - Lizzie.frame.toolbarHeight);
+      int minlength = Math.min(getWidth(), getHeight() - Lizzie.frame.toolbarHeight);
       Lizzie.frame.setBounds(
           Lizzie.frame.getX(),
           Lizzie.frame.getY(),
@@ -4552,13 +4557,10 @@ public class LizzieFrame extends JFrame {
         Batchfiles.add(files[i]);
       }
       loadFile(files[0], false, true);
-      // toolbar.chkAnaAutoSave.setSelected(true);
-      // toolbar.chkAnaAutoSave.setEnabled(false);
       // 打开分析界面
       if (Lizzie.frame.analysisTable != null && Lizzie.frame.analysisTable.frame.isVisible()) {
         Lizzie.frame.analysisTable.refreshTable();
       }
-      // Lizzie.leelaz.komi(komi);
       LizzieFrame.toolbar.chkAnaAutoSave.setSelected(true);
       StartAnaDialog newgame = new StartAnaDialog(isFlashMode, Lizzie.frame);
       newgame.setVisible(true);
@@ -8479,7 +8481,6 @@ public class LizzieFrame extends JFrame {
 
   /** Display the controls */
   void drawControls() {
-    // userAlreadyKnowsAboutCommandString = true;
     showControlTime = System.currentTimeMillis();
     if (showControls) {
       return;
@@ -8487,7 +8488,6 @@ public class LizzieFrame extends JFrame {
     cachedImage = new BufferedImage(mainPanel.getWidth(), mainPanel.getHeight(), TYPE_INT_ARGB);
 
     // redraw background
-    // createBackground(mainPanel.getWidth(), mainPanel.getHeight());
 
     List<String> commandsToShow = new ArrayList<>(Arrays.asList(commands));
     // if (Lizzie.leelaz.getDynamicKomi().isPresent()) {
@@ -9369,7 +9369,6 @@ public class LizzieFrame extends JFrame {
     BoardHistoryNode targetNode = resolveWinrateGraphTargetNode(x, y);
     if (targetNode != null) {
       // isPlayingAgainstLeelaz = false;
-      // menu.toggleDoubleMenuGameStatus();
       // noautocounting();
       if (canGoAfterload) goToWinrateGraphTarget(targetNode, false);
     }
