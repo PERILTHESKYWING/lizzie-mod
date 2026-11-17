@@ -5323,7 +5323,7 @@ public class KataGoAutoSetupDialog extends JDialog {
   }
 
   private boolean isRemoteWeightCompatibleWithEngine(RemoteWeightInfo info) {
-    if (info == null || !info.isTransformer()) {
+    if (info == null || (!info.isTransformer() && info.minimumKataGoVersion.isEmpty())) {
       return true;
     }
     return engineValidationResult == null

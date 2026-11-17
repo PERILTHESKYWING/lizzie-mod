@@ -474,12 +474,6 @@ public class Menu extends JMenuBar {
         });
     fileMenu.add(loadKomi);
 
-    //
-    //    final JFontMenuItem resume = new JFontMenuItem(resourceBundle.getString("Menu.resume"));
-    // // ();
-    //    // resume.setText("恢复自动保存的棋谱");
-    //    fileMenu.add(resume);
-    //
     //    resume.addActionListener(
     //        new ActionListener() {
     //          @Override
@@ -1196,6 +1190,12 @@ public class Menu extends JMenuBar {
             commitPane.setState(Lizzie.config.showComment);
           }
         });
+
+    final JFontMenuItem openingExplorer =
+        new JFontMenuItem(resourceBundle.getString("OpeningExplorer.title"));
+    openingExplorer.putClientProperty(AutoAnalyzeMenu.ACTION_PROPERTY, "menu.openingExplorer");
+    panel.add(openingExplorer);
+    openingExplorer.addActionListener(e -> Lizzie.frame.toggleOpeningExplorer());
 
     final JFontCheckBoxMenuItem variationPane =
         new JFontCheckBoxMenuItem(resourceBundle.getString("Menu.variationPane")); // ("分支面板(G)");

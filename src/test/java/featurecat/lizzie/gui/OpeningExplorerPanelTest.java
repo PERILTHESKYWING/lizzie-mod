@@ -1,0 +1,137 @@
+package featurecat.lizzie.gui;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import featurecat.lizzie.Config;
+import featurecat.lizzie.ConfigTestHelper;
+import featurecat.lizzie.Lizzie;
+import featurecat.lizzie.explorer.OpeningDatabase;
+import featurecat.lizzie.explorer.OpeningImporter;
+import featurecat.lizzie.rules.Board;
+import featurecat.lizzie.rules.BoardHistoryList;
+import featurecat.lizzie.rules.SGFParser;
+import featurecat.lizzie.rules.Zobrist;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
+import javax.swing.JTable;
+import javax.swing.SwingUtilities;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+/** The panel reads the real game tree, queries the index and maps moves into the board's view. */
+class OpeningExplorerPanelTest {
+  @TempDir Path tmp;
+  private Config previousConfig;
+  private int previousWidth;
+  private int previousHeight;
+  private BoardRenderer previousRenderer;
+
+  @BeforeEach
+  void setUp() {
+    previousConfig = Lizzie.config;
+    previousWidth = Board.boardWidth;
+    previousHeight = Board.boardHeight;
+    previousRenderer = LizzieFrame.boardRenderer;
+    LizzieFrame.boardRenderer = null;
+    Lizzie.config = ConfigTestHelper.createForTests(tmp.resolve("work"));
+    Board.boardWidth = 19;
+    Board.boardHeight = 19;
+    Zobrist.init();
+  }
+
+  @AfterEach
+  void tearDown() throws Exception {
+    SwingUtilities.invokeAndWait(() -> {});
+    Lizzie.config = previousConfig;
+    Board.boardWidth = previousWidth;
+    Board.boardHeight = previousHeight;
+    LizzieFrame.boardRenderer = previousRenderer;
+    Zobrist.init();
+  }
+
+  private void seed(Path dir) throws Exception {
+    OpeningDatabase db = OpeningDatabase.open(dir);
+    int id = db.createCollection("pros");
+    List<Path> files =
+        List.of(
+            write("(;SZ[19]PB[a];B[pd];W[dd];B[pp])"),
+            write("(;SZ[19]PB[b];B[pd];W[dd];B[pp])"),
+            write("(;SZ[19]PB[c];B[pd];W[dd];B[dq])"));
+    OpeningImporter.importFiles(db, files, id, false, (a, b, c, d) -> {}, () -> false);
+  }
+
+  private int fileNo;
+
+  private Path write(String sgf) throws Exception {
+    Path p = tmp.resolve("f" + (fileNo++) + ".sgf");
+    Files.writeString(p, sgf, StandardCharsets.UTF_8);
+    return p;
+  }
+
+  private static void waitFor(BooleanSupplier condition) throws Exception {
+    long deadline = System.nanoTime() + 10_000_000_000L;
+    AtomicReference<Boolean> ok = new AtomicReference<>(false);
+    while (System.nanoTime() < deadline) {
+      SwingUtilities.invokeAndWait(() -> ok.set(condition.getAsBoolean()));
+      if (ok.get()) return;
+      Thread.onSpinWait();
+    }
+    throw new AssertionError("condition not reached");
+  }
+
+  @Test
+  void showsPopularMovesForTheDisplayedPositionInItsOwnOrientation() throws Exception {
+    Path dir = tmp.resolve("explorer");
+    seed(dir);
+    // The displayed game is the same opening rotated by 180 degrees: B dp, W pp.
+    BoardHistoryList history = SGFParser.parseSgf("(;SZ[19];B[dp];W[pp])", false);
+    while (history.next().isPresent()) {}
+    AtomicReference<OpeningExplorerPanel> panel = new AtomicReference<>();
+    int[] relayouts = {0};
+    SwingUtilities.invokeAndWait(
+        () ->
+            panel.set(
+                new OpeningExplorerPanel(dir, () -> history, () -> relayouts[0]++, () -> {})));
+    SwingUtilities.invokeAndWait(() -> panel.get().setOpen(true));
+    JTable table = findTable(panel.get());
+    waitFor(() -> table.getRowCount() == 2);
+    SwingUtilities.invokeAndWait(
+        () -> {
+          // Main line pd dd pp, rotated 180: pp -> dd (D16), dq -> pc (Q17).
+          assertEquals(Board.convertCoordinatesToName(3, 3), table.getValueAt(0, 0));
+          assertEquals(2, table.getValueAt(0, 1));
+          assertEquals(66.666, (Double) table.getValueAt(0, 2), 0.01);
+          assertEquals(Board.convertCoordinatesToName(15, 2), table.getValueAt(1, 0));
+          List<OpeningExplorerMarks.Mark> marks = panel.get().marks().marks();
+          assertEquals(2, marks.size());
+          assertEquals(3, marks.get(0).x());
+          assertEquals(3, marks.get(0).y());
+          assertFalse(marks.get(0).selected());
+          table.getSelectionModel().setSelectionInterval(1, 1);
+          assertTrue(panel.get().marks().marks().get(1).selected());
+          assertEquals(1, relayouts[0]);
+        });
+    assertTrue(Files.exists(dir.resolve("explorer-settings.json")));
+    SwingUtilities.invokeAndWait(() -> panel.get().setOpen(false));
+    SwingUtilities.invokeAndWait(() -> assertTrue(panel.get().marks().marks().isEmpty()));
+  }
+
+  private static JTable findTable(java.awt.Container c) {
+    for (java.awt.Component child : c.getComponents()) {
+      if (child instanceof JTable t) return t;
+      if (child instanceof java.awt.Container inner) {
+        JTable t = findTable(inner);
+        if (t != null) return t;
+      }
+    }
+    return null;
+  }
+}
