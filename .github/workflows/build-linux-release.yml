@@ -151,7 +151,7 @@ jobs:
           fi
 
       - name: Upload workflow artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: linux-release
           path: |
@@ -172,7 +172,7 @@ jobs:
             --output dist/release-meta/release-asset-provenance.json
 
       - name: Upload run-bound release asset provenance
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-asset-provenance-linux-attempt-${{ github.run_attempt }}
           path: dist/release-meta/release-asset-provenance.json

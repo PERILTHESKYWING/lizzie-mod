@@ -108,7 +108,7 @@ jobs:
                   raise SystemExit('Source archive size or SHA-256 mismatch')
               print(f'Verified identical source CPU archive from {source_tag}; no executable was run')
           PY
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: steps.archive.outputs.has_source == 'true'
         with:
           name: verified-cpu-archive-${{ github.run_id }}
@@ -169,7 +169,7 @@ jobs:
           test -z "$(git status --porcelain --untracked-files=normal)"
       - name: Upload scoped execution evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: acceptance-linux-sgf-cpu-${{ github.sha }}
           path: |

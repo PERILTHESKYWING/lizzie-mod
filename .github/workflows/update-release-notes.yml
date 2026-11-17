@@ -75,7 +75,7 @@ jobs:
             --output "$RELEASE_NOTES_PATH"
 
       - name: Upload generated notes artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-notes
           path: ${{ env.RELEASE_NOTES_PATH }}

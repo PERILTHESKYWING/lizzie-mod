@@ -53,7 +53,7 @@ jobs:
           --sdk "$RUNNER_TEMP/katago-sdk/prefix" --output "$RUNNER_TEMP/katago-package"
       - name: Retain build evidence, not a release asset
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: source-${{ matrix.target }}-${{ github.sha }}
           path: |

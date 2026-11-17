@@ -43,7 +43,7 @@ jobs:
           }
       - name: Preserve window screenshots and assertions, not performance claims
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: b11-speed-notice-windows
           path: |

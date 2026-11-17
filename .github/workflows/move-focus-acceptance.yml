@@ -72,7 +72,7 @@ jobs:
           }
       - name: Keep native evidence without claiming GPU acceptance
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: native-focus-windows-${{ github.sha }}
           path: |

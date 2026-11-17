@@ -24,7 +24,7 @@ jobs:
         run: python3 scripts/run_local_ci.py --profile portable --group repository --require-clean --summary-dir target/local-ci/portable-repository
       - name: Upload local CI summary
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: local-ci-summary-portable-repository
           path: target/local-ci/portable-repository
@@ -40,7 +40,7 @@ jobs:
         run: python3 scripts/run_local_ci.py --profile portable --group scripts --require-clean --summary-dir target/local-ci/portable-scripts
       - name: Upload local CI summary
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: local-ci-summary-portable-scripts
           path: target/local-ci/portable-scripts
@@ -64,14 +64,14 @@ jobs:
         run: python scripts/run_local_ci.py --profile windows --group scripts --require-clean --summary-dir target/local-ci/windows-scripts
       - name: Upload repository summary
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: local-ci-summary-windows-repository
           path: target/local-ci/windows-repository
           if-no-files-found: warn
       - name: Upload script summary
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: local-ci-summary-windows-scripts
           path: target/local-ci/windows-scripts
@@ -93,13 +93,13 @@ jobs:
         run: python3 scripts/run_local_ci.py --profile portable --group java --require-clean --summary-dir target/local-ci/portable-java
       - name: Upload local CI summary
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: local-ci-summary-portable-java
           path: target/local-ci/portable-java
           if-no-files-found: warn
       - name: Upload JaCoCo coverage report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: jacoco-coverage-report-linux
           path: target/site/jacoco
@@ -132,7 +132,7 @@ jobs:
         run: ./scripts/run_windows_ci_diagnostics.ps1
       - name: Upload Windows Java diagnostics
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: windows-java-diagnostics
           retention-days: 14
@@ -143,13 +143,13 @@ jobs:
           if-no-files-found: warn
       - name: Upload local CI summary
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: local-ci-summary-windows-java
           path: target/local-ci/windows-java
           if-no-files-found: warn
       - name: Upload JaCoCo coverage report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: jacoco-coverage-report-windows
           path: target/site/jacoco
@@ -208,14 +208,14 @@ jobs:
           '
       - name: Upload desktop smoke artifacts
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: desktop-smoke
           path: target/desktop-smoke
           if-no-files-found: warn
       - name: Upload local CI summary
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: local-ci-summary-portable-desktop
           path: target/local-ci/portable-desktop
@@ -271,14 +271,14 @@ jobs:
         run: python scripts/run_local_ci.py --profile ${{ matrix.profile }} --group engine-process --require-clean --summary-dir target/local-ci/${{ matrix.summary }}
       - name: Upload engine process artifacts
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: engine-process-${{ matrix.name }}
           path: target/engine-process-smoke
           if-no-files-found: warn
       - name: Upload local CI summary
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: local-ci-summary-${{ matrix.summary }}
           path: target/local-ci/${{ matrix.summary }}

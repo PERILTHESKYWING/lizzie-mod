@@ -46,7 +46,7 @@ jobs:
           }
       - name: Preserve actual window renders and assertions
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: rules-update-windows-${{ matrix.scale }}
           path: |
