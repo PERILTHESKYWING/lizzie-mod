@@ -175,6 +175,8 @@ public class BoardRenderer {
   /** The AI Coach's hint and recommendation marks; null outside a coaching game. */
   private CoachBoardMarks coachMarks;
 
+  private OpeningExplorerMarks openingMarks;
+
   private boolean shouldIgnoreBestMove = false;
   private int ignoreBestMoveX = -1;
   private int ignoreBestMoveY = -1;
@@ -363,7 +365,6 @@ public class BoardRenderer {
           if (Lizzie.config.showNextMoves && !isShowingBranch) {
             drawNextMoves(g);
           }
-          // timer.lap("movenumbers");
           if (Lizzie.frame.shouldShowBestMovesFor(displayNode)) {
             if (this.boardIndex == 0) {
               long now = System.currentTimeMillis();
@@ -416,6 +417,9 @@ public class BoardRenderer {
           drawFocusStone(Lizzie.frame.clickbadmove[0], Lizzie.frame.clickbadmove[1], g);
         if (coachMarks != null && boardIndex == 0)
           coachMarks.paint(
+              g, x + scaledMarginWidth, y + scaledMarginHeight, squareWidth, squareHeight);
+        if (openingMarks != null && boardIndex == 0 && !isShowingBranch)
+          openingMarks.paint(
               g, x + scaledMarginWidth, y + scaledMarginHeight, squareWidth, squareHeight);
         g.drawImage(cachedStonesShadowImagedraged, x, y, null);
         g.drawImage(cachedStonesImagedraged, x, y, null);
@@ -740,9 +744,6 @@ public class BoardRenderer {
 
   private void drawRawWinrate(Graphics2D g0) {
     g0.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-    // Font font = new Font(Lizzie.config.fontName, Font.PLAIN, (int) (Math.min(28,
-    // this.scaledMarginHeight*63/100)));
-    //   g0.setFont(font);
     String wr = "";
     Leelaz leelaz = this.boardIndex == 1 && Lizzie.leelaz2 != null ? Lizzie.leelaz2 : Lizzie.leelaz;
     if (leelaz.isKatago)
@@ -919,11 +920,6 @@ public class BoardRenderer {
 
       // Draw the wooden background
       drawWoodenBoard(g);
-      //      g.setColor(new Color(0,0,0,52));
-      //      g.fillRect(x, y+stoneRadius/5, stoneRadius/5, boardHeight-stoneRadius/5);
-      //      g.fillRect(x, y, boardWidth-stoneRadius/5,  stoneRadius/5);
-      //      g.fillRect(x+boardWidth-stoneRadius/5, y, stoneRadius/5, boardHeight-stoneRadius/5);
-      //      g.fillRect(x+stoneRadius/5, y+boardHeight-stoneRadius/5, boardWidth,  stoneRadius/5);
       // Draw the lines
       g.setColor(Color.BLACK);
       BasicStroke borderStroke =
@@ -4291,6 +4287,10 @@ public class BoardRenderer {
 
   void setCoachMarks(CoachBoardMarks marks) {
     coachMarks = marks;
+  }
+
+  void setOpeningMarks(OpeningExplorerMarks marks) {
+    openingMarks = marks;
   }
 
   /**

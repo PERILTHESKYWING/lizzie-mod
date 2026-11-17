@@ -4,6 +4,14 @@ All notable maintenance updates to this fork are documented here.
 
 ## Unreleased
 
+- Opening Explorer (K, or View → Panel → Opening Explorer): a compact panel at the right edge shows the moves played from the current position in your own imported SGF collections as bars with percentages, game counts and the sample size, and marks them on the board; double-click a move to list its games. Positions match across all board symmetries and transpositions; side to move, ko, board size and colours are never mixed. Each game counts once per position (main line by default, variations optional); duplicates are ignored. SGF files and ZIP archives import in the background with progress and cancel into named collections, which can be filtered by player, rank, event and year. The index is stored locally under the work directory and grows incrementally. See docs/OPENING_EXPLORER.md.
+
+- Settings → Update AI model… finds the strongest safe official KataGo network (official HTTPS source, SHA-256 and size, compatible engine version, free disk space), asks first, downloads and verifies it, benchmarks it on this computer, suggests a lighter network when it would be slow, and switches through KataGo Auto Setup, which keeps the current network if the engine cannot start. See docs/KATAGO_MODELS.md.
+
+- KataGo Auto Setup also lists networks from an optional `katago-models.json` in the work directory, so newer official networks can be pinned (HTTPS official source, SHA-256, size, minimum KataGo version) without an application update; invalid entries are refused with a reason. A network row that states a minimum KataGo version is checked against the engine even when it is not a Transformer. See docs/KATAGO_MODELS.md.
+
+- Theme folders can carry an optional `pack.json` manifest (name, author, version, compatible app version), and a validator keeps pack images inside the pack folder; groundwork for user visual packs, with no change to the current appearance. See docs/THEME_PACKS.md.
+
 - Leela Zero engine matches no longer fail because startup sends an unsupported clear_cache command. Analysis, move-generation analysis, stop and raw-policy commands follow the running engine's advertised capabilities; mixed protocols parse win rates according to the command actually sent. Passes and their undo reach every engine. Live analysis tables distinguish missing score, spread and LCB from a reported zero. Optional argument probing and full rules, time and search-parameter capability negotiation remain follow-up work.
 
 - AI Coach take-backs and blunder retries retain the withdrawn moves, AI replies and comments as SGF variations. Replaying an earlier attempt reuses its branch, while a replacement move keeps the active game's original main-line or training-variation slot, including after repeated take-backs.

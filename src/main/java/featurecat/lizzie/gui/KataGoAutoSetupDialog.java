@@ -3687,6 +3687,14 @@ public class KataGoAutoSetupDialog extends JDialog {
     return null;
   }
 
+  /** Switches to a network the one-click model update downloaded, verified and benchmarked. */
+  void switchToDownloadedWeight(Path weight) {
+    refreshState(
+        () -> {
+          if (snapshot != null) prepareWeightEngineSwitch(snapshot.withActiveWeight(weight));
+        });
+  }
+
   private void useSelectedWeight() {
     if (rejectOverlappingBackgroundTask()) return;
     if (snapshot == null || snapshot.weightCatalog == null) {
@@ -5323,7 +5331,7 @@ public class KataGoAutoSetupDialog extends JDialog {
   }
 
   private boolean isRemoteWeightCompatibleWithEngine(RemoteWeightInfo info) {
-    if (info == null || !info.isTransformer()) {
+    if (info == null || (!info.isTransformer() && info.minimumKataGoVersion.isEmpty())) {
       return true;
     }
     return engineValidationResult == null

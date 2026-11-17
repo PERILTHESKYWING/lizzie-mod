@@ -1299,7 +1299,7 @@ public final class KataGoAutoSetupHelper {
         throw e;
       }
     }
-    return weights;
+    return KataGoUserModelCatalog.merge(weights, currentWorkingDir());
   }
 
   private static String officialStrongestUrl() {

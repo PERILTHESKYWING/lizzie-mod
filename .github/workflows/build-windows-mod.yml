@@ -1,0 +1,105 @@
+name: Build Windows installer (mod)
+
+# Builds the Windows installer and portable packages for this fork with the same packaging
+# scripts as the official release workflow, without creating a GitHub release. The packages are
+# attached to the workflow run as an artifact ("windows-installers").
+
+on:
+  push:
+    branches:
+      - feature/opening-explorer
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-mod-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 190
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Generate app icons
+        shell: powershell
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pillow
+          python scripts/generate_app_icons.py
+
+      - name: Install packaging tools
+        shell: powershell
+        run: |
+          choco install wixtoolset --no-progress -y
+          choco install 7zip --no-progress -y
+
+      - name: Build shaded jar
+        shell: bash
+        run: mvn -B -DskipTests package
+
+      - name: Upload jar and swap scripts
+        shell: bash
+        run: |
+          mkdir -p dist/swap
+          cp target/lizzie-yzy2.5.3-shaded.jar packaging/windows/Install-OpeningExplorer.bat \
+            packaging/windows/Restore-Original.bat dist/swap/
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: jar-and-swap-script
+          path: dist/swap/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Prepare bundled KataGo assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ./scripts/prepare_bundled_katago.sh
+
+      - name: Build Windows installer and portable package
+        timeout-minutes: 150
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          date_tag="$(date -u +%Y-%m-%d)"
+          WINDOWS_BUILD_SERIAL="${GITHUB_RUN_NUMBER}" LIZZIE_RELEASE_PRERELEASE="true" \
+            ./scripts/package_windows_exe.sh "$date_tag" 1.0.0 \
+            target/lizzie-yzy2.5.3-shaded.jar "next-${date_tag}.${GITHUB_RUN_NUMBER}"
+          ls -la dist/release
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-installers
+          path: |
+            dist/release/*.exe
+            dist/release/*.zip
+            dist/release/*.txt
+          if-no-files-found: error
+          retention-days: 30
