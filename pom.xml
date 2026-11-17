@@ -197,7 +197,7 @@
 		<dependency>
 			<groupId>com.google.zxing</groupId>
 			<artifactId>javase</artifactId>
-			<version>3.5.3</version>
+			<version>3.5.4</version>
 			<exclusions>
 				<!-- Only zxing's command-line tools reference JCommander, and jai-imageio is a
 					TIFF ImageIO plugin; the app only decodes QR codes from in-memory images
