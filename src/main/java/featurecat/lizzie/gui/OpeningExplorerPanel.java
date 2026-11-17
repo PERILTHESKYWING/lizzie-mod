@@ -2,6 +2,7 @@ package featurecat.lizzie.gui;
 
 import featurecat.lizzie.explorer.BoardPositionAdapter;
 import featurecat.lizzie.explorer.CanonicalPosition;
+import featurecat.lizzie.explorer.GameMetadata;
 import featurecat.lizzie.explorer.GoPosition;
 import featurecat.lizzie.explorer.OpeningDatabase;
 import featurecat.lizzie.explorer.OpeningExplorerService;
@@ -52,8 +53,6 @@ import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.table.AbstractTableModel;
-import javax.swing.table.DefaultTableCellRenderer;
 
 /**
  * The Opening Explorer: a narrow panel docked at the right edge of the main window that lists the
@@ -65,6 +64,7 @@ import javax.swing.table.DefaultTableCellRenderer;
 final class OpeningExplorerPanel extends JPanel {
   static final int WIDTH = 280;
   private static final int MAX_BOARD_MARKS = 12;
+  private static final int MAX_LISTED_GAMES = 1000;
   private static final Color BACKGROUND = new Color(0xf7, 0xf7, 0xf5);
   private static final Color LINE = new Color(0xd8, 0xd8, 0xd4);
   private static final Color MUTED = new Color(0x60, 0x60, 0x60);
@@ -82,8 +82,9 @@ final class OpeningExplorerPanel extends JPanel {
   private final JLabel status = new JLabel(" ");
   private final JProgressBar progress = new JProgressBar();
   private final JButton cancelImport = new JButton();
-  private final MoveTableModel model = new MoveTableModel();
-  private final JTable table = new JTable(model);
+  private final MoveListModel model = new MoveListModel();
+  private final javax.swing.JList<OpeningExplorerMoveRow.Row> table =
+      new javax.swing.JList<>(model);
 
   private List<OpeningDatabase.Collection> collections = List.of();
   private CanonicalPosition position;
@@ -91,6 +92,7 @@ final class OpeningExplorerPanel extends JPanel {
   private String lastQueryIdentity;
   private int dataVersion;
   private OpeningExplorerService.ImportHandle runningImport;
+  private JTable lastGamesList;
 
   OpeningExplorerPanel(
       Path directory,
@@ -185,26 +187,29 @@ final class OpeningExplorerPanel extends JPanel {
   }
 
   private JScrollPane buildTable() {
-    table.setFillsViewportHeight(true);
-    table.setShowVerticalLines(false);
-    table.setGridColor(LINE);
-    table.setRowHeight(Math.max(20, table.getRowHeight() + 2));
+    table.setCellRenderer(new OpeningExplorerMoveRow());
+    table.setFixedCellHeight(OpeningExplorerMoveRow.HEIGHT);
+    // Keys stay with the board (arrows navigate the game, K closes the panel).
+    table.setFocusable(false);
     table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-    table.getTableHeader().setReorderingAllowed(false);
-    table
-        .getSelectionModel()
-        .addListSelectionListener(
-            e -> {
-              if (!e.getValueIsAdjusting()) updateMarks();
-            });
-    DefaultTableCellRenderer right = new DefaultTableCellRenderer();
-    right.setHorizontalAlignment(SwingConstants.RIGHT);
-    table.setDefaultRenderer(Integer.class, right);
-    table.setDefaultRenderer(Double.class, new PercentRenderer());
-    applyColumnWidths();
+    table.addListSelectionListener(
+        e -> {
+          if (!e.getValueIsAdjusting()) updateMarks();
+        });
+    table.setToolTipText(text("gamesHint"));
+    table.addMouseListener(
+        new java.awt.event.MouseAdapter() {
+          @Override
+          public void mouseClicked(java.awt.event.MouseEvent e) {
+            int row = table.locationToIndex(e.getPoint());
+            boolean inside = row >= 0 && table.getCellBounds(row, row).contains(e.getPoint());
+            if (e.getClickCount() == 2 && inside) showGames(row);
+          }
+        });
     JScrollPane scroll = new JScrollPane(table);
     scroll.setBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, LINE));
     scroll.getViewport().setBackground(Color.WHITE);
+    scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
     return scroll;
   }
 
@@ -233,13 +238,6 @@ final class OpeningExplorerPanel extends JPanel {
     b.setFocusable(false);
     b.setMargin(new java.awt.Insets(1, 6, 1, 6));
     return b;
-  }
-
-  private void applyColumnWidths() {
-    int[] widths = settings.showRawCounts ? new int[] {52, 54, 56, 44} : new int[] {60, 70, 70};
-    for (int i = 0; i < widths.length && i < table.getColumnCount(); i++) {
-      table.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
-    }
   }
 
   // --------------------------------------------------------------------------- board queries
@@ -288,7 +286,6 @@ final class OpeningExplorerPanel extends JPanel {
     if (stats == null || position == null) return;
     int selectedMove = selectedCanonicalMove();
     model.set(position, stats, settings.showRawCounts);
-    applyColumnWidths();
     int total = totalGames();
     if (total == 0) {
       summary.setText(text("emptyDatabase"));
@@ -306,9 +303,10 @@ final class OpeningExplorerPanel extends JPanel {
       if (settings.includeVariations) s.append("<br>").append(text("variationsNote"));
       summary.setText(s.append("</html>").toString());
     }
-    for (int row = 0; row < model.getRowCount(); row++) {
+    table.clearSelection();
+    for (int row = 0; row < model.getSize(); row++) {
       if (model.moveAt(row).canonicalMove() == selectedMove) {
-        table.getSelectionModel().setSelectionInterval(row, row);
+        table.setSelectedIndex(row);
         break;
       }
     }
@@ -316,8 +314,8 @@ final class OpeningExplorerPanel extends JPanel {
   }
 
   private int selectedCanonicalMove() {
-    int row = table.getSelectedRow();
-    return row >= 0 && row < model.getRowCount() ? model.moveAt(row).canonicalMove() : -100;
+    int row = table.getSelectedIndex();
+    return row >= 0 && row < model.getSize() ? model.moveAt(row).canonicalMove() : -100;
   }
 
   private void updateMarks() {
@@ -414,6 +412,74 @@ final class OpeningExplorerPanel extends JPanel {
     updateCollectionsButton();
     lastQueryIdentity = null;
     boardChanged();
+  }
+
+  /** Lists the games behind one row (double-click), newest first. */
+  void showGames(int row) {
+    if (position == null || stats == null || row < 0 || row >= model.getSize()) return;
+    OpeningStats.MoveStat move = model.moveAt(row);
+    String name = moveName(position.toDisplay(move.canonicalMove()), position.width());
+    service.gamesPlaying(
+        position.key(),
+        move.canonicalMove(),
+        settings.filter(),
+        settings.includeVariations,
+        MAX_LISTED_GAMES,
+        games -> openGamesDialog(name, games));
+  }
+
+  private void openGamesDialog(String moveName, List<GameMetadata> games) {
+    String[] columns = {
+      text("colBlack"),
+      text("colWhite"),
+      text("colDate"),
+      text("colEvent"),
+      text("colResult"),
+      text("colSource")
+    };
+    Object[][] rows = new Object[games.size()][];
+    for (int i = 0; i < games.size(); i++) {
+      GameMetadata g = games.get(i);
+      rows[i] =
+          new Object[] {
+            withRank(g.blackPlayer(), g.blackRank()),
+            withRank(g.whitePlayer(), g.whiteRank()),
+            g.date(),
+            g.event(),
+            g.result(),
+            g.source()
+          };
+    }
+    JTable list =
+        new JTable(new javax.swing.table.DefaultTableModel(rows, columns)) {
+          @Override
+          public boolean isCellEditable(int r, int c) {
+            return false;
+          }
+        };
+    list.setAutoCreateRowSorter(true);
+    list.setFillsViewportHeight(true);
+    lastGamesList = list;
+    if (java.awt.GraphicsEnvironment.isHeadless()) return;
+    javax.swing.JDialog dialog =
+        new javax.swing.JDialog(
+            SwingUtilities.getWindowAncestor(this),
+            format("gamesTitle", moveName, games.size()),
+            java.awt.Dialog.ModalityType.MODELESS);
+    dialog.add(new JScrollPane(list));
+    dialog.setSize(720, 380);
+    dialog.setLocationRelativeTo(this);
+    dialog.setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+    dialog.setVisible(true);
+  }
+
+  /** The table of the games list opened last (for tests). */
+  JTable lastGamesList() {
+    return lastGamesList;
+  }
+
+  private static String withRank(String player, String rank) {
+    return rank.isEmpty() ? player : player + " (" + rank + ")";
   }
 
   private void showMoreMenu(Component anchor) {
@@ -684,81 +750,59 @@ final class OpeningExplorerPanel extends JPanel {
     return Board.convertCoordinatesToName(displayPoint % width, displayPoint / width);
   }
 
-  // --------------------------------------------------------------------------- table model
+  // --------------------------------------------------------------------------- list model
 
-  private final class MoveTableModel extends AbstractTableModel {
-    private List<OpeningStats.MoveStat> rows = List.of();
-    private CanonicalPosition pos;
-    private OpeningStats data;
-    private boolean raw;
+  /** Number of result rows (for tests). */
+  int rowCount() {
+    return model.getSize();
+  }
+
+  /** The row shown at {@code index} (for tests). */
+  OpeningExplorerMoveRow.Row rowAt(int index) {
+    return model.getElementAt(index);
+  }
+
+  void selectRow(int index) {
+    table.setSelectedIndex(index);
+  }
+
+  private final class MoveListModel
+      extends javax.swing.AbstractListModel<OpeningExplorerMoveRow.Row> {
+    private List<OpeningStats.MoveStat> moves = List.of();
+    private List<OpeningExplorerMoveRow.Row> rows = List.of();
 
     void set(CanonicalPosition pos, OpeningStats data, boolean raw) {
-      boolean structure = this.raw != raw;
-      this.pos = pos;
-      this.data = data;
-      this.raw = raw;
-      this.rows = data.moves();
-      if (structure) fireTableStructureChanged();
-      else fireTableDataChanged();
+      int old = rows.size();
+      moves = data.moves();
+      List<OpeningExplorerMoveRow.Row> next = new ArrayList<>(moves.size());
+      for (int i = 0; i < moves.size(); i++) {
+        OpeningStats.MoveStat m = moves.get(i);
+        String detail = format("gamesCount", String.format(Locale.ROOT, "%,d", m.games()));
+        if (raw) detail += " \u00B7 " + format("rawCount", m.rawOccurrences());
+        next.add(
+            new OpeningExplorerMoveRow.Row(
+                moveName(pos.toDisplay(m.canonicalMove()), pos.width()),
+                data.percent(m),
+                detail,
+                i == 0));
+      }
+      rows = next;
+      if (old > 0) fireIntervalRemoved(this, 0, old - 1);
+      if (!rows.isEmpty()) fireIntervalAdded(this, 0, rows.size() - 1);
     }
 
     OpeningStats.MoveStat moveAt(int row) {
-      return rows.get(row);
+      return moves.get(row);
     }
 
     @Override
-    public int getRowCount() {
+    public int getSize() {
       return rows.size();
     }
 
     @Override
-    public int getColumnCount() {
-      return raw ? 4 : 3;
-    }
-
-    @Override
-    public String getColumnName(int column) {
-      switch (column) {
-        case 0:
-          return text("colMove");
-        case 1:
-          return text("colGames");
-        case 2:
-          return text("colPercent");
-        default:
-          return text("colRaw");
-      }
-    }
-
-    @Override
-    public Class<?> getColumnClass(int column) {
-      return column == 0 ? String.class : column == 2 ? Double.class : Integer.class;
-    }
-
-    @Override
-    public Object getValueAt(int row, int column) {
-      OpeningStats.MoveStat m = rows.get(row);
-      switch (column) {
-        case 0:
-          return moveName(pos.toDisplay(m.canonicalMove()), pos.width());
-        case 1:
-          return m.games();
-        case 2:
-          return data.percent(m);
-        default:
-          return m.rawOccurrences();
-      }
-    }
-  }
-
-  private static final class PercentRenderer extends DefaultTableCellRenderer {
-    PercentRenderer() {
-      setHorizontalAlignment(SwingConstants.RIGHT);
-    }
-
-    @Override
-    protected void setValue(Object value) {
-      setText(value instanceof Double d ? String.format(Locale.ROOT, "%.1f%%", d) : "");
+    public OpeningExplorerMoveRow.Row getElementAt(int index) {
+      return rows.get(index);
     }
   }
 }

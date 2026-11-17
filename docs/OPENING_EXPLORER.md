@@ -5,16 +5,19 @@ from your own imported SGF collections. It never runs an engine: popularity is n
 
 ## Use
 
-1. **View → Panel → Opening Explorer** opens the panel at the right edge of the window (about
-   280 px; the board keeps the rest). The × button or the same menu item closes it. The panel
+1. Press **K**, or use **View → Panel → Opening Explorer (K)** or function search, to open the panel at the right edge of the window (about
+   280 px; the board keeps the rest). K, the × button or the same menu item closes it. The panel
    remembers whether it was open.
 2. **Import…** picks SGF files and/or ZIP archives of SGF files (several at once) and asks for a
    collection name (new or existing). Import runs in the background with progress and a Cancel
    button; games finished before a cancel are kept. Duplicate records are skipped (or linked to the
    extra collection) and unreadable games are reported, not fatal.
-3. Navigate the game as usual. For every position the panel lists each recorded next move with the
-   number of games and the percentage, most popular first, and the sample size above the list.
-   Selecting a row highlights the move on the board; nothing is played.
+3. Navigate the game as usual. For every position the panel lists each recorded next move as a bar
+   (its share of the games), with the percentage and the number of games, most popular first, and
+   the sample size above the list. The same percentages appear on the board.
+   Selecting a row highlights the move on the board; nothing is played. Double-clicking a row lists
+   the games behind it (players with ranks, date, event, result, source file), newest first,
+   counted exactly as the row is counted.
 4. The collection button selects which collections take part (several may be ticked).
    **⋯ → Filter games…** restricts by player, rank, event and year range. Games without a date are
    excluded only while a year range is set.
@@ -68,3 +71,12 @@ than eight accumulate. Your SGF files are only read, never changed or copied.
   symmetry, transpositions, side to move, sizes, colour inversion, passes, repeats, duplicates,
   variations, denominators, metadata, ZIP, persistence, segment merge, cancellation and a
   1,200-game import) and `OpeningExplorerPanelTest`.
+
+## Notes
+
+- While an AI Coach game runs, the coach panel uses the right edge and the explorer is hidden; it
+  comes back when the coaching game ends.
+- "Index variations in new imports" applies to files imported after it is switched on; re-import
+  a collection to add variations to games imported before.
+- Positions match on simple ko only; superko history is not part of a position.
+- Files over 8 MB and ZIP archives with more than 200,000 entries are skipped and reported.

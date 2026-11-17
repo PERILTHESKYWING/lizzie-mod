@@ -161,6 +161,28 @@ public final class OpeningExplorerService implements AutoCloseable {
         });
   }
 
+  /** Games behind one statistics row; see {@link OpeningDatabase#gamesPlaying}. */
+  public void gamesPlaying(
+      PositionKey key,
+      int canonicalMove,
+      OpeningFilter filter,
+      boolean includeVariations,
+      int limit,
+      Consumer<List<GameMetadata>> result) {
+    worker.execute(
+        () -> {
+          List<GameMetadata> list;
+          try {
+            list = db().gamesPlaying(key, canonicalMove, filter, includeVariations, limit);
+          } catch (IOException | RuntimeException e) {
+            LOGGER.warn("Listing opening games failed", e);
+            list = List.of();
+          }
+          List<GameMetadata> answer = list;
+          callbacks.execute(() -> result.accept(answer));
+        });
+  }
+
   public void renameCollection(int id, String name, Runnable done) {
     worker.execute(
         () -> {

@@ -789,6 +789,8 @@ public class Input implements MouseListener, KeyListener, MouseWheelListener, Mo
       case VK_K:
         if (e.isAltDown()) {
           Lizzie.config.toggleEvaluationColoring();
+        } else if (!controlIsPressed(e) && !e.isMetaDown() && !e.isShiftDown()) {
+          Lizzie.frame.toggleOpeningExplorer();
         }
         break;
       // Use Ctrl+Num to switching multiple engine

@@ -734,6 +734,14 @@ public final class FunctionCatalog {
                       "Menu.panel",
                       "Menu.commitPane"),
                   menuEntry(
+                      "menu.openingExplorer",
+                      "OpeningExplorer.title",
+                      "FunctionSearch.category.view",
+                      TargetType.SETTING,
+                      "Menu.viewMenu",
+                      "Menu.panel",
+                      "OpeningExplorer.title"),
+                  menuEntry(
                       "menu.variationPane",
                       "Menu.variationPane",
                       "FunctionSearch.category.view",
@@ -2003,6 +2011,7 @@ public final class FunctionCatalog {
       case "menu.newAnalyzeModeGame" -> "Alt+N";
       case "analysis.toggle" -> "Space";
       case "analysis.bad-moves" -> "Y";
+      case "menu.openingExplorer" -> "K";
       case "game.komi" -> "I";
       case "menu.setBoard" -> "Ctrl+I";
       case "menu.setAsMain" -> "L";

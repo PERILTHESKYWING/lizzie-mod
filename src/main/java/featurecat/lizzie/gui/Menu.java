@@ -1192,7 +1192,7 @@ public class Menu extends JMenuBar {
         });
 
     final JFontMenuItem openingExplorer =
-        new JFontMenuItem(resourceBundle.getString("OpeningExplorer.title"));
+        new JFontMenuItem(resourceBundle.getString("OpeningExplorer.menu"));
     openingExplorer.putClientProperty(AutoAnalyzeMenu.ACTION_PROPERTY, "menu.openingExplorer");
     panel.add(openingExplorer);
     openingExplorer.addActionListener(e -> Lizzie.frame.toggleOpeningExplorer());

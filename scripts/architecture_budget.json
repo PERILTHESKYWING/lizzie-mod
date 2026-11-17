@@ -24,7 +24,7 @@
     "src/main/java/featurecat/lizzie/gui/RemoteComputeDialog.java": 3021,
     "src/main/java/featurecat/lizzie/logging/DiagnosticBundleExporter.java": 2668,
     "src/main/java/featurecat/lizzie/analysis/PlayerStrengthEstimator.java": 2171,
-    "src/main/java/featurecat/lizzie/search/FunctionCatalog.java": 2154,
+    "src/main/java/featurecat/lizzie/search/FunctionCatalog.java": 2163,
     "src/main/java/featurecat/lizzie/gui/NewHumanSlGameDialog.java": 1652
   },
   "max_static_references": {

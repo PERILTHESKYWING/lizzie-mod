@@ -331,7 +331,37 @@ public final class OpeningDatabase {
     return new OpeningStats(key, includeVariations, gamesReaching, ended, raw, List.copyOf(moves));
   }
 
-  /** Metadata of the games behind a query (for a future "show games" list); capped. */
+  /**
+   * The games behind one row of {@link #query}: games whose vote at this position is {@code
+   * canonicalMove}, counted exactly as the statistics count them (first main-line occurrence, or
+   * any line in variation mode). Newest first by date, at most {@code limit}.
+   */
+  public List<GameMetadata> gamesPlaying(
+      PositionKey key,
+      int canonicalMove,
+      OpeningFilter filter,
+      boolean includeVariations,
+      int limit) {
+    BitSet allowed = allowedGames(filter);
+    Set<Integer> ids = new LinkedHashSet<>();
+    for (Segment s : segments) {
+      for (int i = s.lowerBound(key.hi(), key.lo()); i < s.size(); i++) {
+        if (s.hi[i] != key.hi() || s.lo[i] != key.lo()) break;
+        if (!allowed.get(s.game[i]) || s.move[i] != canonicalMove) continue;
+        int flags = s.flags[i];
+        boolean variation = (flags & SgfGameIndexer.FLAG_VARIATION) != 0;
+        boolean counts =
+            includeVariations || (!variation && (flags & SgfGameIndexer.FLAG_FIRST) != 0);
+        if (counts && games.containsKey(s.game[i])) ids.add(s.game[i]);
+      }
+    }
+    List<GameMetadata> result = new ArrayList<>();
+    for (Integer id : ids) result.add(games.get(id).metadata);
+    result.sort(Comparator.comparing(GameMetadata::date).reversed());
+    return result.size() > limit ? List.copyOf(result.subList(0, limit)) : result;
+  }
+
+  /** Metadata of the games reaching a position (any move); capped. */
   public List<GameMetadata> gamesAt(PositionKey key, OpeningFilter filter, int limit) {
     BitSet allowed = allowedGames(filter);
     Set<Integer> ids = new LinkedHashSet<>();

@@ -101,22 +101,24 @@ class OpeningExplorerPanelTest {
             panel.set(
                 new OpeningExplorerPanel(dir, () -> history, () -> relayouts[0]++, () -> {})));
     SwingUtilities.invokeAndWait(() -> panel.get().setOpen(true));
-    JTable table = findTable(panel.get());
-    waitFor(() -> table.getRowCount() == 2);
+    OpeningExplorerPanel p = panel.get();
+    waitFor(() -> p.rowCount() == 2);
     SwingUtilities.invokeAndWait(
         () -> {
           // Main line pd dd pp, rotated 180: pp -> dd (D16), dq -> pc (Q17).
-          assertEquals(Board.convertCoordinatesToName(3, 3), table.getValueAt(0, 0));
-          assertEquals(2, table.getValueAt(0, 1));
-          assertEquals(66.666, (Double) table.getValueAt(0, 2), 0.01);
-          assertEquals(Board.convertCoordinatesToName(15, 2), table.getValueAt(1, 0));
-          List<OpeningExplorerMarks.Mark> marks = panel.get().marks().marks();
+          assertEquals(Board.convertCoordinatesToName(3, 3), p.rowAt(0).move());
+          assertEquals(66.666, p.rowAt(0).percent(), 0.01);
+          assertTrue(p.rowAt(0).top());
+          assertTrue(p.rowAt(0).detail().startsWith("2 "), p.rowAt(0).detail());
+          assertEquals(Board.convertCoordinatesToName(15, 2), p.rowAt(1).move());
+          assertFalse(p.rowAt(1).top());
+          List<OpeningExplorerMarks.Mark> marks = p.marks().marks();
           assertEquals(2, marks.size());
           assertEquals(3, marks.get(0).x());
           assertEquals(3, marks.get(0).y());
           assertFalse(marks.get(0).selected());
-          table.getSelectionModel().setSelectionInterval(1, 1);
-          assertTrue(panel.get().marks().marks().get(1).selected());
+          p.selectRow(1);
+          assertTrue(p.marks().marks().get(1).selected());
           assertEquals(1, relayouts[0]);
         });
     assertTrue(Files.exists(dir.resolve("explorer-settings.json")));
@@ -124,14 +126,36 @@ class OpeningExplorerPanelTest {
     SwingUtilities.invokeAndWait(() -> assertTrue(panel.get().marks().marks().isEmpty()));
   }
 
-  private static JTable findTable(java.awt.Container c) {
-    for (java.awt.Component child : c.getComponents()) {
-      if (child instanceof JTable t) return t;
-      if (child instanceof java.awt.Container inner) {
-        JTable t = findTable(inner);
-        if (t != null) return t;
-      }
-    }
-    return null;
+  @Test
+  void importsFromThePanelAndListsTheGamesBehindAMove() throws Exception {
+    Path dir = tmp.resolve("explorer-import");
+    BoardHistoryList history = SGFParser.parseSgf("(;SZ[19];B[pd];W[dd])", false);
+    while (history.next().isPresent()) {}
+    List<Path> files =
+        List.of(
+            write("(;SZ[19]PB[Old]BR[9p]PW[w1]DT[2001-05-01]EV[Cup A]RE[B+R];B[pd];W[dd];B[pp])"),
+            write("(;SZ[19]PB[New]PW[w2]DT[2024-02-02]RE[W+1.5];B[pd];W[dd];B[pp])"),
+            write("(;SZ[19]PB[Other]PW[w3];B[pd];W[dd];B[dq])"));
+    AtomicReference<OpeningExplorerPanel> panel = new AtomicReference<>();
+    SwingUtilities.invokeAndWait(
+        () -> {
+          panel.set(new OpeningExplorerPanel(dir, () -> history, () -> {}, () -> {}));
+          panel.get().setOpen(true);
+          panel.get().startImport(files, "Pros");
+        });
+    OpeningExplorerPanel p = panel.get();
+    waitFor(() -> p.rowCount() == 2 && p.rowAt(0).detail().startsWith("2 "));
+    SwingUtilities.invokeAndWait(() -> panel.get().showGames(0));
+    waitFor(() -> panel.get().lastGamesList() != null);
+    SwingUtilities.invokeAndWait(
+        () -> {
+          JTable games = panel.get().lastGamesList();
+          assertEquals(2, games.getRowCount());
+          assertEquals("New", games.getValueAt(0, 0)); // newest first
+          assertEquals("Old (9p)", games.getValueAt(1, 0));
+          assertEquals("Cup A", games.getValueAt(1, 3));
+          assertEquals("B+R", games.getValueAt(1, 4));
+        });
+    assertTrue(Files.exists(dir.resolve("library.json")));
   }
 }
