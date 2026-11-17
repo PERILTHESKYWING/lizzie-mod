@@ -9,7 +9,24 @@ Engine, network and backend are separate:
 | Backend (CUDA, TensorRT, OpenCL, Eigen, Metal) | chosen by KataGo Auto Setup per engine build; a network row may list the backends it was tested with |
 | Selection | the engine profile's `-model` argument, written by Auto Setup when a network is activated |
 
-## Getting a newer network
+## One click: Settings → Update AI model…
+
+1. LizzieYzy Next reads the official network list (katagotraining.org, falling back to the built-in
+   catalogue when offline) and keeps only networks that are safe to install: an HTTPS download from
+   an official KataGo host, a published SHA-256 and size, a minimum KataGo version your engine meets,
+   and enough free disk space.
+2. It recommends the strongest of those (online Elo, then the catalogue tier) and asks before doing
+   anything. If you already use it, it says so.
+3. On OK it downloads and verifies the file, then runs KataGo's own benchmark with it on your computer.
+   If the network reaches fewer than 80 visits per second, it suggests the next lighter network instead
+   (or lets you use it anyway).
+4. It switches through KataGo Auto Setup, which keeps your current network if the engine cannot start
+   with the new one. Old networks stay installed; pick one in KataGo Auto Setup to switch back.
+
+It works with a KataGo that runs on this computer (set up by KataGo Auto Setup), not with remote
+engines.
+
+## Getting a newer network by hand
 
 1. Open **KataGo Auto Setup**. The network list combines the built-in rows with the current
    official networks from katagotraining.org (strongest-network API and network table), refreshed
