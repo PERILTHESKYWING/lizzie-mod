@@ -53,7 +53,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.x'
       - name: Run Windows repository checks
@@ -117,7 +117,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.x'
       - name: Set up Java 21
@@ -241,7 +241,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.x'
       - name: Set up Java 21

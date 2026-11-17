@@ -27,7 +27,7 @@ jobs:
           ref: 47aadc08518b3e121f22539796c911002f699584
           path: upstream-katago
           persist-credentials: false
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Select MSVC 14.44 x64 toolchain
