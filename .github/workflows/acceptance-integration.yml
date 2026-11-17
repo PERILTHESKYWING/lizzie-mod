@@ -135,7 +135,7 @@ jobs:
           apt-config dump Acquire::Retries Acquire::http::Timeout Acquire::https::Timeout
           sudo apt-get update
           sudo apt-get install -y xvfb xauth fonts-dejavu-core fonts-noto-cjk
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         if: needs.prepare-source-archive.outputs.has_source == 'true'
         with:
           name: verified-cpu-archive-${{ github.run_id }}

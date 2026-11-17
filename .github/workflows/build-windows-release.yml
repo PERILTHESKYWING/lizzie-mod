@@ -527,7 +527,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Download the tested packages from this workflow run
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: windows-release-assets-${{ github.run_id }}
           path: dist
