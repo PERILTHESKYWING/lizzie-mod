@@ -39,7 +39,7 @@ jobs:
       RELEASE_RUN_ATTEMPT: ${{ github.run_attempt }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Java 21
         uses: actions/setup-java@v5

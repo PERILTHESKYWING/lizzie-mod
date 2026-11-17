@@ -21,8 +21,8 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: lightvector/KataGo
           ref: 47aadc08518b3e121f22539796c911002f699584

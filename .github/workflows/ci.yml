@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       - name: Run repository checks
         run: python3 scripts/run_local_ci.py --profile portable --group repository --require-clean --summary-dir target/local-ci/portable-repository
       - name: Upload local CI summary
@@ -35,7 +35,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       - name: Run portable script tests
         run: python3 scripts/run_local_ci.py --profile portable --group scripts --require-clean --summary-dir target/local-ci/portable-scripts
       - name: Upload local CI summary
@@ -51,7 +51,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -82,7 +82,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       - name: Set up Java 21
         uses: actions/setup-java@v5
         with:
@@ -115,7 +115,7 @@ jobs:
           $deadline = [DateTimeOffset]::UtcNow.AddMinutes(27).ToUnixTimeSeconds()
           Add-Content -LiteralPath $env:GITHUB_ENV -Value "LIZZIE_CI_DEADLINE_UNIX_SECONDS=$deadline" -Encoding utf8
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -160,7 +160,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       - name: Set up Java 21
         uses: actions/setup-java@v5
         with:
@@ -239,7 +239,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -291,7 +291,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       - name: Require all execution jobs
         env:
           REPOSITORY: ${{ needs.repository-checks.result }}
