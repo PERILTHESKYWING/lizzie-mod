@@ -18,7 +18,8 @@ from your own imported SGF collections. It never runs an engine: popularity is n
    (its share of the games), with the percentage and the number of games, most popular first, and
    the sample size above the list. The same percentages appear on the board.
    Selecting a row highlights the move on the board; nothing is played. **⋯ → Colours…** sets
-   the colours of the board markers, the bars and the selected move, and links to KataGo's
+   the colours of the board markers, the bars and the selected move with a colour wheel (hue ring,
+   saturation/brightness disc, hex field), and links to KataGo's
    suggested-move colours (Settings → Theme → Best move colour). Double-clicking a row lists
    the games behind it (players with ranks, date, event, result, source file), newest first,
    counted exactly as the row is counted.
@@ -44,11 +45,11 @@ from your own imported SGF collections. It never runs an engine: popularity is n
   once per move, so shares may add up to more than 100 %.
 - **Symmetric positions:** when the board itself is symmetric, equivalent moves (for example the
   four 3-3 answers to tengen) are one row and are drawn on one representative point.
-- **Duplicates:** games whose main line is identical (30 moves or more) are one game, even when
-  player names, dates or file names differ, and so are mirrored or rotated copies of the same
-  record. The earliest copy is kept and joins the other copy's collections. This runs after every
-  import and once on databases created by earlier versions. Shorter games are only merged when
-  their moves, players, date and result all match.
+- **Duplicates:** games whose first 100 moves are identical are one game, even when player names,
+  dates or file names differ or one record continues longer, and so are mirrored or rotated copies
+  of the same record. The longest record is kept and joins the other copies' collections. This runs
+  after every import and once on databases created by earlier versions. Games under 100 moves are
+  only merged when their moves, players, date and result all match.
 - **Names on symmetric boards:** when several points are equivalent (the empty board, symmetric
   shapes), the list and the board use the one nearest the top-right corner, so the 4-4 point is
   Q16 and the 3-4 point is R16. Otherwise moves are shown where they would really be played.

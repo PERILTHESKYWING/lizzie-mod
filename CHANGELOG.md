@@ -4,7 +4,7 @@ All notable maintenance updates to this fork are documented here.
 
 ## Unreleased
 
-- Opening Explorer: Import → Fox accounts… adds the newest games (up to 200) of any Fox account to a collection; equivalent points on symmetric boards are named in the top-right corner (Q16 hoshi, R16 komoku); games with the same moves count once even when names or dates differ (also cleaned up in existing databases); ⋯ → Colours… sets marker, bar and selected-move colours and links to KataGo's suggestion colours.
+- Opening Explorer: Import → Fox accounts… adds the newest games (up to 200) of any Fox account to a collection; equivalent points on symmetric boards are named in the top-right corner (Q16 hoshi, R16 komoku); games whose first 100 moves match count once even when names or dates differ, keeping the longest record (also cleaned up in existing databases); ⋯ → Colours… sets marker, bar and selected-move colours with a colour wheel and links to KataGo's suggestion colours.
 
 - Help → Update LizzieYzy (mod)… installs the newest build of this fork in minutes: a workflow publishes the program file with its SHA-256 on every push to main, the app verifies it, keeps the previous version as a backup and swaps it on restart. See docs/UPDATING_MOD.md.
 

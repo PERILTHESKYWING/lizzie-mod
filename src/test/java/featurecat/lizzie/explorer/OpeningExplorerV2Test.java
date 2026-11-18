@@ -27,7 +27,7 @@ class OpeningExplorerV2Test {
     return "" + (char) ('a' + index % 19) + (char) ('a' + index / 19);
   }
 
-  /** A legal-looking 40-move game: distinct points from a seeded shuffle. */
+  /** A game on distinct points from a seeded shuffle (no stone is played twice on a point). */
   private static List<String> moves(long seed, int count) {
     List<Integer> points = new ArrayList<>();
     for (int i = 0; i < 361; i++) points.add(i);
@@ -91,14 +91,14 @@ class OpeningExplorerV2Test {
   @Test
   void sameMovesWithDifferentNamesAreOneGame() throws IOException {
     OpeningDatabase db = OpeningDatabase.open(tmp.resolve("db"));
-    List<String> long1 = moves(1, 40);
+    List<String> long1 = moves(1, 120);
     OpeningImporter.Report r =
         importInto(
             db,
             "A",
             write(game("Ke Jie", "Shin", "2024-01-01", long1)),
             write(game("柯洁", "申真谞", "2024.1.1", long1)), // same game, other names and date
-            write(game("x", "y", "", moves(2, 40))));
+            write(game("x", "y", "", moves(2, 120))));
     assertEquals(2, r.gamesAdded());
     assertEquals(1, r.duplicates());
     assertEquals(2, db.gameCount());
@@ -115,10 +115,10 @@ class OpeningExplorerV2Test {
   @Test
   void shortGamesAndDifferentGamesAreKept() throws IOException {
     OpeningDatabase db = OpeningDatabase.open(tmp.resolve("db"));
-    List<String> shortGame = moves(3, 20);
-    List<String> long1 = moves(4, 40);
+    List<String> shortGame = moves(3, 60);
+    List<String> long1 = moves(4, 120);
     List<String> branch = new ArrayList<>(long1);
-    branch.set(39, moves(5, 361).stream().filter(m -> !long1.contains(m)).findFirst().get());
+    branch.set(99, moves(5, 361).stream().filter(m -> !long1.contains(m)).findFirst().get());
     importInto(
         db,
         "A",
@@ -130,9 +130,35 @@ class OpeningExplorerV2Test {
   }
 
   @Test
+  void gamesWhoseFirstHundredMovesMatchAreOneGameAndTheLongestIsKept() throws IOException {
+    OpeningDatabase db = OpeningDatabase.open(tmp.resolve("db"));
+    List<String> base = moves(8, 130);
+    List<String> truncated = base.subList(0, 105); // same game, record stops early
+    List<String> other = moves(9, 361);
+    List<String> divergesAt100 = new ArrayList<>(base.subList(0, 99));
+    other.stream().filter(m -> !base.contains(m)).limit(25).forEach(divergesAt100::add);
+    OpeningImporter.Report r =
+        importInto(
+            db,
+            "A",
+            write(game("short copy", "w", "", truncated)),
+            write(game("full copy", "w", "", base)),
+            write(game("different 100th move", "w", "", divergesAt100)));
+    assertEquals(2, db.gameCount());
+    assertEquals(1, r.duplicates());
+    CanonicalPosition empty = CanonicalPosition.of(new GoPosition(19, 19));
+    List<String> players = new ArrayList<>();
+    for (GameMetadata m : db.gamesAt(empty.key(), OpeningFilter.ALL, 10)) {
+      players.add(m.blackPlayer());
+    }
+    assertTrue(players.contains("full copy"), players.toString()); // the longer record stays
+    assertTrue(players.contains("different 100th move"));
+  }
+
+  @Test
   void mirroredCopiesOfTheSameRecordAreOneGame() throws IOException {
     OpeningDatabase db = OpeningDatabase.open(tmp.resolve("db"));
-    List<String> long1 = moves(6, 40);
+    List<String> long1 = moves(6, 120);
     List<String> mirrored = new ArrayList<>();
     for (String m : long1) mirrored.add(sgfPoint(BoardSymmetry.FLIP_X.mapIndex(pt(m), 19, 19)));
     importInto(db, "A", write(game("a", "b", "", long1)), write(game("c", "d", "", mirrored)));
@@ -144,7 +170,7 @@ class OpeningExplorerV2Test {
     Path dir = tmp.resolve("old");
     OpeningDatabase db = OpeningDatabase.open(dir);
     int c = db.createCollection("A");
-    List<String> long1 = moves(7, 40);
+    List<String> long1 = moves(7, 120);
     for (String name : new String[] {"a", "b", "c"}) {
       db.addGame(
           SgfGameIndexer.index(SgfReader.parse(game(name, "w", "", long1)).get(0), name, false), c);

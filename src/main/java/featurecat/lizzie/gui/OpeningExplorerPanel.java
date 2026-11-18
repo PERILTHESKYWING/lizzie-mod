@@ -826,7 +826,8 @@ final class OpeningExplorerPanel extends JPanel {
       swatch.addActionListener(
           e -> {
             java.awt.Color c =
-                javax.swing.JColorChooser.showDialog(this, labels[index], chosen[index]);
+                ColorWheel.showDialog(
+                    this, labels[index], chosen[index], text("ok"), text("cancel"));
             if (c != null) {
               chosen[index] = c;
               swatch.setBackground(c);

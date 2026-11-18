@@ -54,9 +54,9 @@ public final class OpeningDatabase {
   private static final int MERGE_THRESHOLD = 8;
 
   /** Games shorter than this are never merged: short identical games can be different games. */
-  public static final int MIN_DUPLICATE_MOVES = 30;
+  public static final int MIN_DUPLICATE_MOVES = SgfGameIndexer.PREFIX_MOVES;
 
-  private static final int DEDUP_VERSION = 1;
+  private static final int DEDUP_VERSION = 2;
 
   /** A named collection of games. */
   public record Collection(int id, String name, int games) {}
@@ -77,8 +77,17 @@ public final class OpeningDatabase {
     final GameMetadata metadata;
     final int moves;
 
+    /** Digest of the first 100 moves, "" for shorter games or games indexed before it existed. */
+    final String prefix;
+
     GameEntry(
-        int id, String fingerprint, Set<Integer> collections, GameMetadata metadata, int moves) {
+        int id,
+        String fingerprint,
+        Set<Integer> collections,
+        GameMetadata metadata,
+        int moves,
+        String prefix) {
+      this.prefix = prefix == null ? "" : prefix;
       this.id = id;
       this.fingerprint = fingerprint;
       this.collections = collections;
@@ -236,7 +245,10 @@ public final class OpeningDatabase {
     int id = nextGameId++;
     Set<Integer> colls = new LinkedHashSet<>();
     colls.add(collectionId);
-    games.put(id, new GameEntry(id, game.fingerprint, colls, game.metadata, game.mainLineMoves));
+    games.put(
+        id,
+        new GameEntry(
+            id, game.fingerprint, colls, game.metadata, game.mainLineMoves, game.prefixDigest));
     byFingerprint.put(game.fingerprint, id);
     pendingGames.add(game);
     pendingIds.add(id);
@@ -307,18 +319,32 @@ public final class OpeningDatabase {
         count[g]++;
       }
     }
-    Map<String, Integer> firstById = new HashMap<>();
-    Set<Integer> removed = new LinkedHashSet<>();
-    for (GameEntry g : new ArrayList<>(games.values())) {
+    // Group games that share their first 100 moves, or (for games indexed before that digest
+    // existed) their whole main line; keep the longest record of each group.
+    Map<String, Integer> byPrefix = new HashMap<>();
+    Map<String, Integer> byLine = new HashMap<>();
+    Map<Integer, Integer> parent = new HashMap<>();
+    for (GameEntry g : games.values()) {
       if (g.moves < minMoves || count[g.id] == 0) continue;
-      String digest = h1[g.id] + ":" + h2[g.id] + ":" + count[g.id];
-      Integer kept = firstById.putIfAbsent(digest, g.id);
-      if (kept == null) continue;
-      GameEntry keep = games.get(kept);
-      keep.collections.addAll(g.collections);
-      games.remove(g.id);
+      parent.put(g.id, g.id);
+      if (!g.prefix.isEmpty()) union(parent, g.id, byPrefix.putIfAbsent(g.prefix, g.id));
+      String line = h1[g.id] + ":" + h2[g.id] + ":" + count[g.id];
+      union(parent, g.id, byLine.putIfAbsent(line, g.id));
+    }
+    Map<Integer, Integer> keepOfGroup = new HashMap<>();
+    for (Integer id : parent.keySet()) {
+      int root = find(parent, id);
+      Integer kept = keepOfGroup.get(root);
+      if (kept == null || better(games.get(id), games.get(kept))) keepOfGroup.put(root, id);
+    }
+    Set<Integer> removed = new LinkedHashSet<>();
+    for (Integer id : new ArrayList<>(parent.keySet())) {
+      int keepId = keepOfGroup.get(find(parent, id));
+      if (keepId == id) continue;
+      GameEntry g = games.remove(id);
+      games.get(keepId).collections.addAll(g.collections);
       byFingerprint.remove(g.fingerprint);
-      removed.add(g.id);
+      removed.add(id);
     }
     if (!removed.isEmpty() || dedupVersion < DEDUP_VERSION) {
       dedupVersion = DEDUP_VERSION;
@@ -329,6 +355,25 @@ public final class OpeningDatabase {
       commit();
     }
     return removed;
+  }
+
+  private static void union(Map<Integer, Integer> parent, int a, Integer b) {
+    if (b == null) return;
+    int ra = find(parent, a);
+    int rb = find(parent, b);
+    if (ra != rb) parent.put(Math.max(ra, rb), Math.min(ra, rb));
+  }
+
+  private static int find(Map<Integer, Integer> parent, int a) {
+    int r = a;
+    while (parent.get(r) != r) r = parent.get(r);
+    parent.put(a, r);
+    return r;
+  }
+
+  /** The longer record wins; on equal length the earlier import. */
+  private static boolean better(GameEntry a, GameEntry b) {
+    return a.moves != b.moves ? a.moves > b.moves : a.id < b.id;
   }
 
   private static long mix(long z) {
@@ -660,7 +705,8 @@ public final class OpeningDatabase {
                 o.getString("fp"),
                 colls,
                 GameMetadata.fromJson(o.getJSONObject("m")),
-                o.optInt("n", 0));
+                o.optInt("n", 0),
+                o.optString("p", ""));
         games.put(e.id, e);
         byFingerprint.put(e.fingerprint, e.id);
       }
@@ -676,6 +722,7 @@ public final class OpeningDatabase {
         o.put("fp", e.fingerprint);
         o.put("c", new JSONArray(e.collections));
         o.put("n", e.moves);
+        if (!e.prefix.isEmpty()) o.put("p", e.prefix);
         o.put("m", e.metadata.toJson());
         w.write(o.toString());
         w.write('\n');
