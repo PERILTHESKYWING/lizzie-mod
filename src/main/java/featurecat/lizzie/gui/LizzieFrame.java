@@ -3391,7 +3391,7 @@ public class LizzieFrame extends JFrame {
     if (Lizzie.config.showVariationGraph) Lizzie.config.toggleShowVariationGraph();
     if (Lizzie.config.showWinrateGraph) Lizzie.config.toggleShowWinrate();
     if (!windowIsMaximized) {
-      int minlength = Math.min(getWidth(), getHeight() - Lizzie.frame.toolbarHeight);
+      int minlength = Math.min(getWidth(), getHeight() - toolbarHeight);
       Lizzie.frame.setBounds(
           Lizzie.frame.getX(),
           Lizzie.frame.getY(),

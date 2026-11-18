@@ -26,3 +26,6 @@ jcef-bundle/
 /readboard_boofcv_config.txt
 
 run.log
+
+# Written by the fork build workflows
+src/main/resources/mod-build.properties

@@ -25,10 +25,10 @@ final class OpeningExplorerMoveRow extends JComponent
 
   static final int HEIGHT = 36;
   private static final Color TRACK = new Color(0xe8, 0xeb, 0xf0);
-  private static final Color TOP_BAR = new Color(0x2f, 0x6f, 0xd6);
-  private static final Color BAR = new Color(0x7d, 0xa6, 0xe6);
-  private static final Color SELECTED_BAR = new Color(0xeb, 0x7a, 0x1e);
-  private static final Color SELECTED_BG = new Color(0xfd, 0xf1, 0xe6);
+  private Color topBar = new Color(0x2f, 0x6f, 0xd6);
+  private Color bar = new Color(0x7d, 0xa6, 0xe6);
+  private Color selectedBar = new Color(0xeb, 0x7a, 0x1e);
+  private Color selectedBg = new Color(0xfd, 0xf1, 0xe6);
   private static final Color TEXT = new Color(0x1e, 0x1e, 0x1e);
   private static final Color MUTED = new Color(0x70, 0x70, 0x70);
   private static final Color SEPARATOR = new Color(0xee, 0xee, 0xec);
@@ -38,6 +38,24 @@ final class OpeningExplorerMoveRow extends JComponent
 
   OpeningExplorerMoveRow() {
     setOpaque(true);
+  }
+
+  /**
+   * Bar colours: the top move uses {@code top}; others a lighter tint; selection uses {@code
+   * selected}.
+   */
+  void setColors(Color top, Color selected) {
+    topBar = top;
+    bar = blend(top, Color.WHITE, 0.4);
+    selectedBar = selected;
+    selectedBg = blend(selected, Color.WHITE, 0.9);
+  }
+
+  private static Color blend(Color a, Color b, double towardB) {
+    return new Color(
+        (int) Math.round(a.getRed() + (b.getRed() - a.getRed()) * towardB),
+        (int) Math.round(a.getGreen() + (b.getGreen() - a.getGreen()) * towardB),
+        (int) Math.round(a.getBlue() + (b.getBlue() - a.getBlue()) * towardB));
   }
 
   @Override
@@ -63,7 +81,7 @@ final class OpeningExplorerMoveRow extends JComponent
           RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
       int w = getWidth();
       int h = getHeight();
-      g.setColor(selected ? SELECTED_BG : Color.WHITE);
+      g.setColor(selected ? selectedBg : Color.WHITE);
       g.fillRect(0, 0, w, h);
       g.setColor(SEPARATOR);
       g.drawLine(0, h - 1, w, h - 1);
@@ -90,7 +108,7 @@ final class OpeningExplorerMoveRow extends JComponent
       g.fillRoundRect(barX, barY, barW, barH, barH, barH);
       int fill = (int) Math.round(barW * Math.max(0, Math.min(100, row.percent())) / 100.0);
       if (row.percent() > 0) fill = Math.max(fill, barH / 2);
-      g.setColor(selected ? SELECTED_BAR : row.top() ? TOP_BAR : BAR);
+      g.setColor(selected ? selectedBar : row.top() ? topBar : bar);
       if (fill > 0) g.fillRoundRect(barX, barY, fill, barH, barH, barH);
 
       g.setColor(TEXT);

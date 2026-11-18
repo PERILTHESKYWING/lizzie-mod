@@ -17,10 +17,10 @@ final class OpeningExplorerMarks {
   /** One marked point in display coordinates; {@code label} is short text such as "42%". */
   record Mark(int x, int y, String label, boolean selected) {}
 
-  private static final Color RING = new Color(52, 120, 220, 210);
-  private static final Color FILL = new Color(52, 120, 220, 60);
-  private static final Color SELECTED = new Color(235, 120, 30, 235);
-  private static final Color SELECTED_FILL = new Color(235, 120, 30, 80);
+  private volatile Color ring = new Color(52, 120, 220, 210);
+  private volatile Color fill = new Color(52, 120, 220, 60);
+  private volatile Color selectedRing = new Color(235, 120, 30, 235);
+  private volatile Color selectedFill = new Color(235, 120, 30, 80);
   private static final Color TEXT_BG = new Color(255, 255, 255, 215);
   private static final Color TEXT = new Color(20, 20, 20);
 
@@ -28,6 +28,18 @@ final class OpeningExplorerMarks {
 
   void set(List<Mark> value) {
     marks = List.copyOf(value);
+  }
+
+  /** Colours for ordinary and selected markers (alpha is applied here). */
+  void setColors(Color mark, Color selected) {
+    ring = withAlpha(mark, 210);
+    fill = withAlpha(mark, 60);
+    selectedRing = withAlpha(selected, 235);
+    selectedFill = withAlpha(selected, 80);
+  }
+
+  private static Color withAlpha(Color c, int alpha) {
+    return new Color(c.getRed(), c.getGreen(), c.getBlue(), alpha);
   }
 
   void clear() {
@@ -57,9 +69,9 @@ final class OpeningExplorerMarks {
       for (Mark m : current) {
         int cx = left + m.x() * squareWidth;
         int cy = top + m.y() * squareHeight;
-        g.setColor(m.selected() ? SELECTED_FILL : FILL);
+        g.setColor(m.selected() ? selectedFill : fill);
         g.fillOval(cx - radius, cy - radius, radius * 2, radius * 2);
-        g.setColor(m.selected() ? SELECTED : RING);
+        g.setColor(m.selected() ? selectedRing : ring);
         g.setStroke(new BasicStroke(Math.max(1.5f, squareWidth / (m.selected() ? 8f : 14f))));
         g.drawOval(cx - radius, cy - radius, radius * 2, radius * 2);
         if (m.label() != null && !m.label().isEmpty()) {

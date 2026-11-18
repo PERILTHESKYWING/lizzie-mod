@@ -53,6 +53,11 @@ public final class OpeningDatabase {
   private static final int SEGMENT_MAGIC = 0x4C5A4F45; // "LZOE"
   private static final int MERGE_THRESHOLD = 8;
 
+  /** Games shorter than this are never merged: short identical games can be different games. */
+  public static final int MIN_DUPLICATE_MOVES = 30;
+
+  private static final int DEDUP_VERSION = 1;
+
   /** A named collection of games. */
   public record Collection(int id, String name, int games) {}
 
@@ -126,6 +131,8 @@ public final class OpeningDatabase {
   private int nextFileNumber = 1;
   private String gamesFile;
   private int generation;
+  private int dedupVersion;
+  private int lastAddedId;
 
   // Pending batch, written by commit().
   private final List<SgfGameIndexer.IndexedGame> pendingGames = new ArrayList<>();
@@ -146,6 +153,9 @@ public final class OpeningDatabase {
     Files.createDirectories(dir);
     OpeningDatabase db = new OpeningDatabase(dir);
     db.load();
+    if (db.dedupVersion < DEDUP_VERSION) {
+      db.removeDuplicateGames(MIN_DUPLICATE_MOVES);
+    }
     return db;
   }
 
@@ -230,6 +240,7 @@ public final class OpeningDatabase {
     byFingerprint.put(game.fingerprint, id);
     pendingGames.add(game);
     pendingIds.add(id);
+    lastAddedId = id;
     dirtyGames = true;
     generation++;
     return AddResult.ADDED;
@@ -265,6 +276,65 @@ public final class OpeningDatabase {
     } else {
       writeLibrary();
     }
+  }
+
+  /** Id given to the game most recently added by {@link #addGame}. */
+  public int lastAddedId() {
+    return lastAddedId;
+  }
+
+  /**
+   * Removes games whose main line is the same as an earlier game's, whatever their player names,
+   * dates or file names: identical move sequences produce identical index records, so games are
+   * compared by a 128-bit digest of their main-line records (mirrored or rotated copies of the same
+   * record match too). Games under {@code minMoves} moves are left alone. The earliest copy is kept
+   * and joins the collections of the removed copies. Pending games must be committed first.
+   *
+   * @return ids of the removed games
+   */
+  public Set<Integer> removeDuplicateGames(int minMoves) throws IOException {
+    if (!pendingGames.isEmpty()) throw new IllegalStateException("commit pending games first");
+    long[] h1 = new long[nextGameId];
+    long[] h2 = new long[nextGameId];
+    int[] count = new int[nextGameId];
+    for (Segment s : segments) {
+      for (int i = 0; i < s.size(); i++) {
+        int g = s.game[i];
+        if (g >= nextGameId || (s.flags[i] & SgfGameIndexer.FLAG_VARIATION) != 0) continue;
+        long v = s.hi[i] * 0x9E3779B97F4A7C15L ^ s.lo[i] ^ ((long) s.move[i] << 8 | s.flags[i]);
+        h1[g] += mix(v);
+        h2[g] += mix(v ^ 0xD1B54A32D192ED03L);
+        count[g]++;
+      }
+    }
+    Map<String, Integer> firstById = new HashMap<>();
+    Set<Integer> removed = new LinkedHashSet<>();
+    for (GameEntry g : new ArrayList<>(games.values())) {
+      if (g.moves < minMoves || count[g.id] == 0) continue;
+      String digest = h1[g.id] + ":" + h2[g.id] + ":" + count[g.id];
+      Integer kept = firstById.putIfAbsent(digest, g.id);
+      if (kept == null) continue;
+      GameEntry keep = games.get(kept);
+      keep.collections.addAll(g.collections);
+      games.remove(g.id);
+      byFingerprint.remove(g.fingerprint);
+      removed.add(g.id);
+    }
+    if (!removed.isEmpty() || dedupVersion < DEDUP_VERSION) {
+      dedupVersion = DEDUP_VERSION;
+      if (!removed.isEmpty()) {
+        generation++;
+        dirtyGames = true;
+      }
+      commit();
+    }
+    return removed;
+  }
+
+  private static long mix(long z) {
+    z = (z ^ (z >>> 30)) * 0xBF58476D1CE4E5B9L;
+    z = (z ^ (z >>> 27)) * 0x94D049BB133111EBL;
+    return z ^ (z >>> 31);
   }
 
   /** Abandons games added since the last commit. */
@@ -529,6 +599,7 @@ public final class OpeningDatabase {
     nextGameId = o.optInt("nextGameId", 1);
     nextCollectionId = o.optInt("nextCollectionId", 1);
     nextFileNumber = o.optInt("nextFileNumber", 1);
+    dedupVersion = o.optInt("dedupVersion", 0);
     JSONArray colls = o.optJSONArray("collections");
     if (colls != null) {
       for (int i = 0; i < colls.length(); i++) {
@@ -619,6 +690,7 @@ public final class OpeningDatabase {
     o.put("nextGameId", nextGameId);
     o.put("nextCollectionId", nextCollectionId);
     o.put("nextFileNumber", nextFileNumber);
+    o.put("dedupVersion", dedupVersion);
     JSONArray colls = new JSONArray();
     for (Map.Entry<Integer, String> e : collectionNames.entrySet()) {
       colls.put(new JSONObject().put("id", e.getKey()).put("name", e.getValue()));

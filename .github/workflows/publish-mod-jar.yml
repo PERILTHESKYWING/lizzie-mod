@@ -1,0 +1,67 @@
+name: Publish mod update
+
+# Builds only the application jar (a few minutes) on every push to main and publishes it on the
+# "mod-latest" release with mod-update.json (commit, size, SHA-256). LizzieYzy's
+# Help > Update LizzieYzy (mod) downloads it from there.
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-mod-jar
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Record build identity
+        run: |
+          printf 'repository=%s\ncommit=%s\n' "$GITHUB_REPOSITORY" "$GITHUB_SHA" \
+            > src/main/resources/mod-build.properties
+
+      - name: Build jar
+        run: mvn -B -q -DskipTests package
+
+      - name: Write update manifest
+        run: |
+          set -euo pipefail
+          jar=target/lizzie-yzy2.5.3-shaded.jar
+          sha=$(sha256sum "$jar" | cut -d' ' -f1)
+          size=$(stat -c%s "$jar")
+          built=$(date -u +%Y-%m-%dT%H:%MZ)
+          printf '{"schema":1,"commit":"%s","builtAt":"%s","jar":"lizzie-yzy2.5.3-shaded.jar","sha256":"%s","size":%s}\n' \
+            "$GITHUB_SHA" "$built" "$sha" "$size" > target/mod-update.json
+          cat target/mod-update.json
+
+      - name: Publish on the mod-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release delete mod-latest --yes --cleanup-tag || true
+          gh release create mod-latest \
+            target/lizzie-yzy2.5.3-shaded.jar target/mod-update.json \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "Latest LizzieYzy mod build" \
+            --notes "Built from ${GITHUB_SHA}. Install from LizzieYzy: Help > Update LizzieYzy (mod)."

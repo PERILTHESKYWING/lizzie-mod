@@ -513,15 +513,10 @@ public class Menu extends JMenuBar {
           }
 
           @Override
-          public void menuDeselected(MenuEvent e) {
-            // TODO Auto-generated method stub
-          }
+          public void menuDeselected(MenuEvent e) {}
 
           @Override
-          public void menuCanceled(MenuEvent e) {
-            // TODO Auto-generated method stub
-
-          }
+          public void menuCanceled(MenuEvent e) {}
         });
 
     final JFontMenu viewMenu = new JFontMenu(resourceBundle.getString("Menu.viewMenu")); // ("显示");
@@ -569,7 +564,6 @@ public class Menu extends JMenuBar {
         new ActionListener() {
           @Override
           public void actionPerformed(ActionEvent e) {
-            // TODO Auto-generated method stub
             Lizzie.config.toggleCoordinates();
             Lizzie.frame.refresh();
           }
@@ -645,7 +639,6 @@ public class Menu extends JMenuBar {
         new ActionListener() {
           @Override
           public void actionPerformed(ActionEvent e) {
-            // TODO Auto-generated method stub
             Lizzie.config.setShowNextMoves(false, false);
           }
         });
@@ -4983,6 +4976,10 @@ public class Menu extends JMenuBar {
     // helpMenu.setFont(headFont);
     this.add(helpMenu);
 
+    final JFontMenuItem modUpdate = new JFontMenuItem(resourceBundle.getString("ModUpdater.menu"));
+    modUpdate.putClientProperty(AutoAnalyzeMenu.ACTION_PROPERTY, "menu.modUpdate");
+    helpMenu.add(modUpdate);
+    modUpdate.addActionListener(e -> new ModUpdater(Lizzie.frame).start());
     final JFontMenuItem diagnosticsAndLogs =
         new JFontMenuItem(resourceBundle.getString("Menu.diagnosticsAndLogs"));
     helpMenu.add(diagnosticsAndLogs);

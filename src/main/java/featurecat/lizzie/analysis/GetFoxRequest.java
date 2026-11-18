@@ -147,6 +147,36 @@ public class GetFoxRequest {
         "account_uid", wrapChessListWithUserInfo(fetchChessList(uid, "0"), uid, nickname, uid));
   }
 
+  /** Fox UID for an account name, or "" when Fox has no such account. Blocking. */
+  public String findUid(String accountName) {
+    JSONObject user = queryUserByName(accountName == null ? "" : accountName.trim());
+    return user == null ? "" : foxUid(user);
+  }
+
+  /** Game ids of one page of an account's games, newest first, after {@code lastCode}. Blocking. */
+  public java.util.List<String> gameIds(String uid, String lastCode) {
+    JSONObject json = new JSONObject(fetchChessList(uid, lastCode));
+    org.json.JSONArray list = json.optJSONArray("chesslist");
+    java.util.List<String> ids = new java.util.ArrayList<>();
+    if (list == null) return ids;
+    for (int i = 0; i < list.length(); i++) {
+      JSONObject game = list.optJSONObject(i);
+      String id = game == null ? "" : game.optString("chessid", "").trim();
+      if (!id.isEmpty()) ids.add(id);
+    }
+    return ids;
+  }
+
+  /** SGF text of one Fox game (main line only), or "" when Fox returns none. Blocking. */
+  public String gameSgf(String chessid) {
+    String payload = fetchSgf(chessid);
+    try {
+      return new JSONObject(payload).optString("chess", "");
+    } catch (RuntimeException e) {
+      return "";
+    }
+  }
+
   private String fetchChessList(String uid, String lastCode) {
     return httpGet(
         BASE_URL

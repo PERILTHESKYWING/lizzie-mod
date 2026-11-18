@@ -8,6 +8,7 @@ import featurecat.lizzie.explorer.OpeningDatabase;
 import featurecat.lizzie.explorer.OpeningExplorerService;
 import featurecat.lizzie.explorer.OpeningExplorerSettings;
 import featurecat.lizzie.explorer.OpeningFilter;
+import featurecat.lizzie.explorer.OpeningImporter;
 import featurecat.lizzie.explorer.OpeningStats;
 import featurecat.lizzie.rules.Board;
 import featurecat.lizzie.rules.BoardData;
@@ -93,6 +94,12 @@ final class OpeningExplorerPanel extends JPanel {
   private int dataVersion;
   private OpeningExplorerService.ImportHandle runningImport;
   private JTable lastGamesList;
+  private final OpeningExplorerMoveRow rowRenderer = new OpeningExplorerMoveRow();
+
+  /** Fox access; replaced in tests. */
+  OpeningImporter.FoxSource foxSource = new FoxClientSource();
+
+  static final int FOX_GAMES_PER_ACCOUNT = 200;
 
   OpeningExplorerPanel(
       Path directory,
@@ -113,6 +120,7 @@ final class OpeningExplorerPanel extends JPanel {
     add(buildFooter(), BorderLayout.SOUTH);
     // Reopen where the user left it; the frame's first refresh runs the first query.
     setVisible(settings.visible);
+    applyColors();
     refreshCollections();
   }
 
@@ -158,7 +166,7 @@ final class OpeningExplorerPanel extends JPanel {
     JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
     buttons.setOpaque(false);
     JButton importButton = smallButton(text("import"));
-    importButton.addActionListener(e -> chooseAndImport());
+    importButton.addActionListener(e -> showImportMenu(importButton));
     JButton more = smallButton("⋯");
     more.setToolTipText(text("more"));
     more.addActionListener(e -> showMoreMenu(more));
@@ -187,7 +195,7 @@ final class OpeningExplorerPanel extends JPanel {
   }
 
   private JScrollPane buildTable() {
-    table.setCellRenderer(new OpeningExplorerMoveRow());
+    table.setCellRenderer(rowRenderer);
     table.setFixedCellHeight(OpeningExplorerMoveRow.HEIGHT);
     // Keys stay with the board (arrows navigate the game, K closes the panel).
     table.setFocusable(false);
@@ -522,6 +530,10 @@ final class OpeningExplorerPanel extends JPanel {
         });
     menu.add(raw);
     menu.addSeparator();
+    JMenuItem colors = new JMenuItem(text("colors"));
+    colors.addActionListener(e -> editColors());
+    menu.add(colors);
+    menu.addSeparator();
     JMenuItem rename = new JMenuItem(text("renameCollection"));
     rename.setEnabled(!collections.isEmpty());
     rename.addActionListener(e -> renameCollection());
@@ -648,6 +660,216 @@ final class OpeningExplorerPanel extends JPanel {
 
   // --------------------------------------------------------------------------- import
 
+  private void showImportMenu(Component anchor) {
+    JPopupMenu menu = new JPopupMenu();
+    JMenuItem files = new JMenuItem(text("importFiles"));
+    files.addActionListener(e -> chooseAndImport());
+    menu.add(files);
+    JMenuItem fox = new JMenuItem(text("importFox"));
+    fox.addActionListener(e -> chooseFoxImport());
+    menu.add(fox);
+    menu.show(anchor, 0, anchor.getHeight());
+  }
+
+  private JComboBox<String> collectionChooser(String suggested) {
+    JComboBox<String> name = new JComboBox<>();
+    name.setEditable(true);
+    for (OpeningDatabase.Collection c : collections) name.addItem(c.name());
+    name.setSelectedItem(suggested);
+    return name;
+  }
+
+  private void chooseFoxImport() {
+    if (runningImport != null) return;
+    JTextField accounts = new JTextField(settings.lastFoxAccounts, 22);
+    JComboBox<String> name = collectionChooser(text("foxCollection"));
+    int answer =
+        JOptionPane.showConfirmDialog(
+            this,
+            new Object[] {
+              text("foxAccounts"),
+              accounts,
+              format("foxLimit", FOX_GAMES_PER_ACCOUNT),
+              text("collectionPrompt"),
+              name
+            },
+            text("importFox"),
+            JOptionPane.OK_CANCEL_OPTION,
+            JOptionPane.PLAIN_MESSAGE);
+    Object selected = name.getEditor().getItem();
+    List<String> names = new ArrayList<>();
+    for (String part : accounts.getText().split("[,;，、\\s]+")) {
+      if (!part.isBlank()) names.add(part.trim());
+    }
+    if (answer != JOptionPane.OK_OPTION || names.isEmpty() || selected == null) return;
+    if (selected.toString().isBlank()) return;
+    settings.lastFoxAccounts = String.join(", ", names);
+    settings.save(service.directory());
+    startFoxImport(names, selected.toString().trim());
+  }
+
+  void startFoxImport(List<String> accounts, String collectionName) {
+    beginImportProgress(accounts.size() * FOX_GAMES_PER_ACCOUNT);
+    runningImport =
+        service.importFox(
+            accounts,
+            collectionName,
+            settings.indexVariations,
+            FOX_GAMES_PER_ACCOUNT,
+            foxSource,
+            (done, total, games, account) -> {
+              progress.setMaximum(Math.max(1, total));
+              progress.setValue(done);
+              progress.setString(format("foxImporting", account, done, total, games));
+            },
+            this::onImportDone,
+            this::onImportFailed);
+  }
+
+  private void beginImportProgress(int max) {
+    progress.setMinimum(0);
+    progress.setMaximum(Math.max(1, max));
+    progress.setValue(0);
+    progress.setString("");
+    progress.setVisible(true);
+    cancelImport.setVisible(true);
+    status.setText(" ");
+    revalidate();
+  }
+
+  private void onImportDone(OpeningImporter.Report report) {
+    finishImport();
+    String message =
+        format("importDone", report.gamesAdded(), report.duplicates(), report.failedGames());
+    if (report.cancelled()) message = text("importCancelled") + " " + message;
+    status.setText(message);
+    status.setToolTipText(
+        report.failures().isEmpty() ? null : String.join("\n", report.failures()));
+    refreshCollections();
+  }
+
+  private void onImportFailed(String message) {
+    finishImport();
+    status.setText(format("importFailed", message));
+    refreshCollections();
+  }
+
+  /** The application's Fox client behind the importer's {@link OpeningImporter.FoxSource}. */
+  private static final class FoxClientSource implements OpeningImporter.FoxSource {
+    private featurecat.lizzie.analysis.GetFoxRequest client;
+
+    private synchronized featurecat.lizzie.analysis.GetFoxRequest client() {
+      if (client == null) client = new featurecat.lizzie.analysis.GetFoxRequest(null);
+      return client;
+    }
+
+    @Override
+    public String findUid(String accountName) throws java.io.IOException {
+      try {
+        return client().findUid(accountName);
+      } catch (RuntimeException e) {
+        throw new java.io.IOException(e.getMessage(), e);
+      }
+    }
+
+    @Override
+    public List<String> gameIds(String uid, String after) throws java.io.IOException {
+      try {
+        return client().gameIds(uid, after);
+      } catch (RuntimeException e) {
+        throw new java.io.IOException(e.getMessage(), e);
+      }
+    }
+
+    @Override
+    public String gameSgf(String gameId) throws java.io.IOException {
+      try {
+        String sgf = client().gameSgf(gameId);
+        if (sgf.isBlank()) throw new java.io.IOException("Fox returned no game record");
+        return sgf;
+      } catch (RuntimeException e) {
+        throw new java.io.IOException(e.getMessage(), e);
+      }
+    }
+  }
+
+  /** Applies the colour settings to the board markers and the bars. */
+  private void applyColors() {
+    java.awt.Color mark =
+        OpeningExplorerSettings.color(settings.markColor, OpeningExplorerSettings.DEFAULT_MARK);
+    java.awt.Color selected =
+        OpeningExplorerSettings.color(
+            settings.selectedColor, OpeningExplorerSettings.DEFAULT_SELECTED);
+    java.awt.Color bar =
+        OpeningExplorerSettings.color(settings.barColor, OpeningExplorerSettings.DEFAULT_BAR);
+    marks.setColors(mark, selected);
+    rowRenderer.setColors(bar, selected);
+    table.repaint();
+  }
+
+  private void editColors() {
+    java.awt.Color[] chosen = {
+      OpeningExplorerSettings.color(settings.markColor, OpeningExplorerSettings.DEFAULT_MARK),
+      OpeningExplorerSettings.color(settings.barColor, OpeningExplorerSettings.DEFAULT_BAR),
+      OpeningExplorerSettings.color(
+          settings.selectedColor, OpeningExplorerSettings.DEFAULT_SELECTED)
+    };
+    String[] labels = {text("colorMarks"), text("colorBars"), text("colorSelected")};
+    JPanel form = new JPanel(new GridLayout(0, 2, 8, 6));
+    JButton[] swatches = new JButton[3];
+    for (int i = 0; i < 3; i++) {
+      int index = i;
+      JButton swatch = new JButton("      ");
+      swatch.setBackground(chosen[i]);
+      swatch.setOpaque(true);
+      swatch.setBorderPainted(true);
+      swatch.addActionListener(
+          e -> {
+            java.awt.Color c =
+                javax.swing.JColorChooser.showDialog(this, labels[index], chosen[index]);
+            if (c != null) {
+              chosen[index] = c;
+              swatch.setBackground(c);
+            }
+          });
+      swatches[i] = swatch;
+      form.add(new JLabel(labels[i]));
+      form.add(swatch);
+    }
+    JButton katago = new JButton(text("colorKataGo"));
+    katago.addActionListener(
+        e -> {
+          if (SwingUtilities.getWindowAncestor(this) instanceof LizzieFrame frame) {
+            frame.openConfigDialog2AtSetting("config.theme.best-move-color");
+          }
+        });
+    Object[] options = {text("ok"), text("colorReset"), text("cancel")};
+    int answer =
+        JOptionPane.showOptionDialog(
+            this,
+            new Object[] {form, katago},
+            text("colors"),
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.PLAIN_MESSAGE,
+            null,
+            options,
+            options[0]);
+    if (answer == 0) {
+      settings.markColor = OpeningExplorerSettings.hex(chosen[0]);
+      settings.barColor = OpeningExplorerSettings.hex(chosen[1]);
+      settings.selectedColor = OpeningExplorerSettings.hex(chosen[2]);
+    } else if (answer == 1) {
+      settings.markColor = OpeningExplorerSettings.DEFAULT_MARK;
+      settings.barColor = OpeningExplorerSettings.DEFAULT_BAR;
+      settings.selectedColor = OpeningExplorerSettings.DEFAULT_SELECTED;
+    } else {
+      return;
+    }
+    settings.save(service.directory());
+    applyColors();
+    updateMarks();
+  }
+
   private void chooseAndImport() {
     if (runningImport != null) return;
     JFileChooser chooser =
@@ -663,14 +885,12 @@ final class OpeningExplorerPanel extends JPanel {
       settings.lastFolder = files[0].getParentFile().getAbsolutePath();
       settings.save(service.directory());
     }
-    JComboBox<String> name = new JComboBox<>();
-    name.setEditable(true);
-    for (OpeningDatabase.Collection c : collections) name.addItem(c.name());
     String suggested =
         files[0].getParentFile() == null
             ? text("defaultCollection")
             : files[0].getParentFile().getName();
-    name.setSelectedItem(collections.isEmpty() ? suggested : collections.get(0).name());
+    JComboBox<String> name =
+        collectionChooser(collections.isEmpty() ? suggested : collections.get(0).name());
     int answer =
         JOptionPane.showConfirmDialog(
             this,
@@ -688,14 +908,7 @@ final class OpeningExplorerPanel extends JPanel {
   }
 
   void startImport(List<Path> files, String collectionName) {
-    progress.setMinimum(0);
-    progress.setMaximum(Math.max(1, files.size()));
-    progress.setValue(0);
-    progress.setString("");
-    progress.setVisible(true);
-    cancelImport.setVisible(true);
-    status.setText(" ");
-    revalidate();
+    beginImportProgress(files.size());
     runningImport =
         service.importFiles(
             files,
@@ -706,22 +919,8 @@ final class OpeningExplorerPanel extends JPanel {
               progress.setValue(done);
               progress.setString(format("importing", done, total, games));
             },
-            report -> {
-              finishImport();
-              String message =
-                  format(
-                      "importDone", report.gamesAdded(), report.duplicates(), report.failedGames());
-              if (report.cancelled()) message = text("importCancelled") + " " + message;
-              status.setText(message);
-              status.setToolTipText(
-                  report.failures().isEmpty() ? null : String.join("\n", report.failures()));
-              refreshCollections();
-            },
-            message -> {
-              finishImport();
-              status.setText(format("importFailed", message));
-              refreshCollections();
-            });
+            this::onImportDone,
+            this::onImportFailed);
   }
 
   private void finishImport() {
