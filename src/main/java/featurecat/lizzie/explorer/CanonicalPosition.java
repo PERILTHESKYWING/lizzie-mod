@@ -163,10 +163,25 @@ public final class CanonicalPosition {
     return best;
   }
 
-  /** Maps a canonical move back onto this board's orientation (one representative point). */
+  /**
+   * Maps a canonical move back onto this board's orientation. When the position is symmetric and
+   * several points are equivalent, the one nearest the top-right corner is chosen (largest x, then
+   * smallest y), so an empty board names the 4-4 point Q16 and the 3-4 point R16.
+   */
   public int toDisplay(int canonicalMove) {
     if (canonicalMove < 0) return canonicalMove;
-    return stabilizer.get(0).inverse().mapIndex(canonicalMove, width, height);
+    int best = -1;
+    for (int p : displayEquivalents(canonicalMove)) {
+      if (best < 0 || topRightFirst(p, best)) best = p;
+    }
+    return best;
+  }
+
+  private boolean topRightFirst(int a, int b) {
+    int ax = a % width;
+    int bx = b % width;
+    if (ax != bx) return ax > bx;
+    return a / width < b / width;
   }
 
   /** All points on this board equivalent to the canonical move (more than one when symmetric). */

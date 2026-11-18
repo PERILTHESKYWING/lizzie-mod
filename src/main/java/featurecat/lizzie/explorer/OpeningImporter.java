@@ -49,6 +49,7 @@ public final class OpeningImporter {
   private int failed;
   private int sinceCommit;
   private final List<String> failures = new ArrayList<>();
+  private final java.util.Set<Integer> addedIds = new java.util.HashSet<>();
 
   private OpeningImporter(
       OpeningDatabase db, int collectionId, boolean includeVariations, BooleanSupplier cancelled) {
@@ -90,19 +91,107 @@ public final class OpeningImporter {
         done++;
         if (stopped) break;
       }
-      db.commit();
+      importer.finish();
     } catch (IOException | RuntimeException e) {
       db.rollback();
       throw e;
     }
     progress.update(done, files.size(), importer.added, "");
-    return new Report(
-        done,
-        importer.added,
-        importer.duplicates,
-        importer.failed,
-        stopped,
-        List.copyOf(importer.failures));
+    return importer.report(done, stopped);
+  }
+
+  /** Where Fox games come from; the application implements it with its Fox client. */
+  public interface FoxSource {
+    /** Fox UID of an account name, or "" when no account has that name. */
+    String findUid(String accountName) throws IOException;
+
+    /** Game ids of one page, newest first; {@code after} is "0" or the previous page's last id. */
+    List<String> gameIds(String uid, String after) throws IOException;
+
+    /** SGF text of one game. */
+    String gameSgf(String gameId) throws IOException;
+  }
+
+  /**
+   * Imports up to {@code gamesPerAccount} of the newest games of each Fox account. Accounts that do
+   * not exist and games that fail to download are reported, never fatal.
+   */
+  public static Report importFox(
+      OpeningDatabase db,
+      List<String> accounts,
+      int collectionId,
+      boolean includeVariations,
+      int gamesPerAccount,
+      FoxSource source,
+      Progress progress,
+      BooleanSupplier cancelled)
+      throws IOException {
+    OpeningImporter importer = new OpeningImporter(db, collectionId, includeVariations, cancelled);
+    int total = Math.max(1, accounts.size() * gamesPerAccount);
+    int fetched = 0;
+    int accountsDone = 0;
+    boolean stopped = false;
+    try {
+      for (String account : accounts) {
+        String name = account.trim();
+        if (name.isEmpty()) continue;
+        int taken = 0;
+        try {
+          String uid = source.findUid(name);
+          if (uid == null || uid.isEmpty()) throw new IOException("no Fox account with this name");
+          String after = "0";
+          java.util.Set<String> seen = new java.util.HashSet<>();
+          pages:
+          while (taken < gamesPerAccount) {
+            List<String> ids = source.gameIds(uid, after);
+            if (ids.isEmpty()) break;
+            for (String id : ids) {
+              if (cancelled.getAsBoolean()) {
+                stopped = true;
+                break pages;
+              }
+              if (!seen.add(id)) continue;
+              if (taken >= gamesPerAccount) break pages;
+              taken++;
+              fetched++;
+              String label = "fox:" + name + ":" + id;
+              try {
+                importer.importText(source.gameSgf(id), label);
+              } catch (IOException | RuntimeException e) {
+                importer.fail(label, e);
+              }
+              progress.update(fetched, total, importer.added, name);
+            }
+            String last = ids.get(ids.size() - 1);
+            if (last.equals(after)) break;
+            after = last;
+          }
+        } catch (IOException | RuntimeException e) {
+          importer.fail("fox:" + name, e);
+        }
+        accountsDone++;
+        if (stopped) break;
+      }
+      importer.finish();
+    } catch (IOException | RuntimeException e) {
+      db.rollback();
+      throw e;
+    }
+    progress.update(fetched, total, importer.added, "");
+    return importer.report(accountsDone, stopped);
+  }
+
+  /** Saves the batch, then removes games whose moves repeat an earlier game. */
+  private void finish() throws IOException {
+    db.commit();
+    for (Integer id : db.removeDuplicateGames(OpeningDatabase.MIN_DUPLICATE_MOVES)) {
+      duplicates++;
+      if (addedIds.remove(id)) added--;
+    }
+  }
+
+  private Report report(int done, boolean stopped) {
+    return new Report(done, added, duplicates, failed, stopped, List.copyOf(failures));
   }
 
   /**
@@ -143,7 +232,11 @@ public final class OpeningImporter {
   }
 
   private void importText(byte[] data, String label) throws IOException {
-    List<SgfReader.Node> roots = SgfReader.parse(SgfReader.decode(data));
+    importText(SgfReader.decode(data), label);
+  }
+
+  private void importText(String text, String label) throws IOException {
+    List<SgfReader.Node> roots = SgfReader.parse(text);
     if (roots.isEmpty()) throw new IllegalArgumentException("no SGF game found");
     for (int i = 0; i < roots.size(); i++) {
       String source = roots.size() == 1 ? label : label + "#" + (i + 1);
@@ -153,6 +246,7 @@ public final class OpeningImporter {
         switch (db.addGame(game, collectionId)) {
           case ADDED:
             added++;
+            addedIds.add(db.lastAddedId());
             if (++sinceCommit >= BATCH_GAMES) {
               db.commit();
               sinceCommit = 0;

@@ -34,6 +34,28 @@ public final class OpeningExplorerSettings {
   public int maxYear;
   public String lastFolder = "";
 
+  /** Colours as #RRGGBB: board markers and bars, the selected move, the top bar. */
+  public String markColor = DEFAULT_MARK;
+
+  public String selectedColor = DEFAULT_SELECTED;
+  public String barColor = DEFAULT_BAR;
+  public String lastFoxAccounts = "";
+
+  public static final String DEFAULT_MARK = "#3478DC";
+  public static final String DEFAULT_SELECTED = "#EB781E";
+  public static final String DEFAULT_BAR = "#2F6FD6";
+
+  /** Parses #RRGGBB, falling back to {@code fallback} for anything else. */
+  public static java.awt.Color color(String hex, String fallback) {
+    String v = hex == null ? "" : hex.trim();
+    if (!v.matches("#[0-9A-Fa-f]{6}")) v = fallback;
+    return new java.awt.Color(Integer.parseInt(v.substring(1), 16));
+  }
+
+  public static String hex(java.awt.Color c) {
+    return String.format("#%02X%02X%02X", c.getRed(), c.getGreen(), c.getBlue());
+  }
+
   public OpeningFilter filter() {
     return new OpeningFilter(collections, player, rank, event, minYear, maxYear);
   }
@@ -57,6 +79,10 @@ public final class OpeningExplorerSettings {
       s.minYear = o.optInt("minYear", 0);
       s.maxYear = o.optInt("maxYear", 0);
       s.lastFolder = o.optString("lastFolder", "");
+      s.markColor = o.optString("markColor", DEFAULT_MARK);
+      s.selectedColor = o.optString("selectedColor", DEFAULT_SELECTED);
+      s.barColor = o.optString("barColor", DEFAULT_BAR);
+      s.lastFoxAccounts = o.optString("lastFoxAccounts", "");
     } catch (IOException | RuntimeException e) {
       LOGGER.warn("Ignoring unreadable opening explorer settings {}", file, e);
       return new OpeningExplorerSettings();
@@ -78,6 +104,10 @@ public final class OpeningExplorerSettings {
     o.put("minYear", minYear);
     o.put("maxYear", maxYear);
     o.put("lastFolder", lastFolder);
+    o.put("markColor", markColor);
+    o.put("selectedColor", selectedColor);
+    o.put("barColor", barColor);
+    o.put("lastFoxAccounts", lastFoxAccounts);
     try {
       Files.createDirectories(dir);
       Path tmp = dir.resolve(FILE + ".tmp");

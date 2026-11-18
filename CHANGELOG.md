@@ -4,6 +4,10 @@ All notable maintenance updates to this fork are documented here.
 
 ## Unreleased
 
+- Opening Explorer: Import → Fox accounts… adds the newest games (up to 200) of any Fox account to a collection; equivalent points on symmetric boards are named in the top-right corner (Q16 hoshi, R16 komoku); games whose first 100 moves match count once even when names or dates differ, keeping the longest record (also cleaned up in existing databases); ⋯ → Colours… sets marker, bar and selected-move colours with a colour wheel and links to KataGo's suggestion colours.
+
+- Help → Update LizzieYzy (mod)… installs the newest build of this fork in minutes: a workflow publishes the program file with its SHA-256 on every push to main, the app verifies it, keeps the previous version as a backup and swaps it on restart. See docs/UPDATING_MOD.md.
+
 - Opening Explorer (K, or View → Panel → Opening Explorer): a compact panel at the right edge shows the moves played from the current position in your own imported SGF collections as bars with percentages, game counts and the sample size, and marks them on the board; double-click a move to list its games. Positions match across all board symmetries and transpositions; side to move, ko, board size and colours are never mixed. Each game counts once per position (main line by default, variations optional); duplicates are ignored. SGF files and ZIP archives import in the background with progress and cancel into named collections, which can be filtered by player, rank, event and year. The index is stored locally under the work directory and grows incrementally. See docs/OPENING_EXPLORER.md.
 
 - Settings → Update AI model… finds the strongest safe official KataGo network (official HTTPS source, SHA-256 and size, compatible engine version, free disk space), asks first, downloads and verifies it, benchmarks it on this computer, suggests a lighter network when it would be slow, and switches through KataGo Auto Setup, which keeps the current network if the engine cannot start. See docs/KATAGO_MODELS.md.

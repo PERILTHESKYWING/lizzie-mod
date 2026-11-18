@@ -33,6 +33,12 @@ public final class SgfGameIndexer {
     public final short[] moves;
     public final byte[] flags;
 
+    /**
+     * Digest of the first {@link #PREFIX_MOVES} moves as a sequence of canonical positions (so a
+     * mirrored copy has the same digest), or "" for shorter games.
+     */
+    public final String prefixDigest;
+
     IndexedGame(
         GameMetadata metadata,
         String fingerprint,
@@ -40,7 +46,9 @@ public final class SgfGameIndexer {
         long[] keyHi,
         long[] keyLo,
         short[] moves,
-        byte[] flags) {
+        byte[] flags,
+        String prefixDigest) {
+      this.prefixDigest = prefixDigest;
       this.metadata = metadata;
       this.fingerprint = fingerprint;
       this.mainLineMoves = mainLineMoves;
@@ -65,6 +73,12 @@ public final class SgfGameIndexer {
   private short[] mv = new short[256];
   private byte[] fl = new byte[256];
   private final Set<PositionKey> seenMainLine = new HashSet<>();
+
+  /** Games whose first this many moves match are the same game (see OpeningDatabase). */
+  public static final int PREFIX_MOVES = 100;
+
+  private final MessageDigest prefix = sha256();
+  private int prefixPositions;
 
   private SgfGameIndexer(boolean includeVariations) {
     this.includeVariations = includeVariations;
@@ -142,7 +156,8 @@ public final class SgfGameIndexer {
         Arrays.copyOf(hi, count),
         Arrays.copyOf(lo, count),
         Arrays.copyOf(mv, count),
-        Arrays.copyOf(fl, count));
+        Arrays.copyOf(fl, count),
+        moves >= PREFIX_MOVES ? HexFormat.of().formatHex(prefix.digest()) : "");
   }
 
   /**
@@ -168,8 +183,14 @@ public final class SgfGameIndexer {
     int flags = 0;
     if (variation) {
       flags |= FLAG_VARIATION;
-    } else if (seenMainLine.add(canonical.key())) {
-      flags |= FLAG_FIRST;
+    } else {
+      if (seenMainLine.add(canonical.key())) flags |= FLAG_FIRST;
+      // The positions before moves 1..100 and after move 100 pin down the first 100 moves.
+      if (prefixPositions++ <= PREFIX_MOVES) {
+        for (long v : new long[] {canonical.key().hi(), canonical.key().lo()}) {
+          for (int b = 0; b < 8; b++) prefix.update((byte) (v >>> (8 * b)));
+        }
+      }
     }
     add(canonical.key(), canonical.canonicalMove(nextMove), flags);
   }

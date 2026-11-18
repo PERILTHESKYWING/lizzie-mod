@@ -148,6 +148,42 @@ public final class OpeningExplorerService implements AutoCloseable {
     return handle;
   }
 
+  /** Creates (or finds) the collection {@code collectionName}, then imports Fox games into it. */
+  public ImportHandle importFox(
+      List<String> accounts,
+      String collectionName,
+      boolean includeVariations,
+      int gamesPerAccount,
+      OpeningImporter.FoxSource source,
+      OpeningImporter.Progress progress,
+      Consumer<OpeningImporter.Report> done,
+      Consumer<String> failed) {
+    ImportHandle handle = new ImportHandle();
+    worker.execute(
+        () -> {
+          try {
+            OpeningDatabase d = db();
+            int collection = d.createCollection(collectionName);
+            OpeningImporter.Report report =
+                OpeningImporter.importFox(
+                    d,
+                    accounts,
+                    collection,
+                    includeVariations,
+                    gamesPerAccount,
+                    source,
+                    (a, b, c, n) -> callbacks.execute(() -> progress.update(a, b, c, n)),
+                    handle::isCancelled);
+            callbacks.execute(() -> done.accept(report));
+          } catch (IOException | RuntimeException e) {
+            LOGGER.warn("Fox import failed", e);
+            String message = e.getMessage() == null ? e.toString() : e.getMessage();
+            callbacks.execute(() -> failed.accept(message));
+          }
+        });
+    return handle;
+  }
+
   public void deleteCollection(int id, Runnable done, Consumer<String> failed) {
     worker.execute(
         () -> {

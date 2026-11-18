@@ -54,6 +54,12 @@ jobs:
           choco install wixtoolset --no-progress -y
           choco install 7zip --no-progress -y
 
+      - name: Record build identity
+        shell: bash
+        run: |
+          printf 'repository=%s\ncommit=%s\n' "$GITHUB_REPOSITORY" "$GITHUB_SHA" \
+            > src/main/resources/mod-build.properties
+
       - name: Build shaded jar
         shell: bash
         run: mvn -B -DskipTests package
