@@ -52,6 +52,7 @@ public final class OpeningDatabase {
   private static final int SCHEMA = 1;
   private static final int SEGMENT_MAGIC = 0x4C5A4F45; // "LZOE"
   private static final int MERGE_THRESHOLD = 8;
+  private static final String RECORDS = "records.bin";
 
   /** Games shorter than this are never merged: short identical games can be different games. */
   public static final int MIN_DUPLICATE_MOVES = SgfGameIndexer.PREFIX_MOVES;
@@ -79,6 +80,11 @@ public final class OpeningDatabase {
 
     /** Digest of the first 100 moves, "" for shorter games or games indexed before it existed. */
     final String prefix;
+
+    /** Where the game's compressed record is in records.bin, or -1 when none was stored. */
+    long recordOffset = -1;
+
+    int recordLength;
 
     GameEntry(
         int id,
@@ -146,6 +152,7 @@ public final class OpeningDatabase {
   // Pending batch, written by commit().
   private final List<SgfGameIndexer.IndexedGame> pendingGames = new ArrayList<>();
   private final List<Integer> pendingIds = new ArrayList<>();
+  private final List<String> pendingRecords = new ArrayList<>();
   private boolean dirtyGames;
 
   // Filter cache.
@@ -249,6 +256,7 @@ public final class OpeningDatabase {
         id,
         new GameEntry(
             id, game.fingerprint, colls, game.metadata, game.mainLineMoves, game.prefixDigest));
+    pendingRecords.add(game.record);
     byFingerprint.put(game.fingerprint, id);
     pendingGames.add(game);
     pendingIds.add(id);
@@ -261,9 +269,11 @@ public final class OpeningDatabase {
   /** Writes pending games as a new index segment, then the games file and the library. */
   public void commit() throws IOException {
     if (!pendingGames.isEmpty()) {
+      appendRecords();
       segments.add(writeSegment(buildSegment()));
       pendingGames.clear();
       pendingIds.clear();
+      pendingRecords.clear();
     }
     if (segments.size() > MERGE_THRESHOLD) {
       Segment merged = writeSegment(mergeSegments());
@@ -390,6 +400,7 @@ public final class OpeningDatabase {
     }
     pendingGames.clear();
     pendingIds.clear();
+    pendingRecords.clear();
     generation++;
   }
 
@@ -451,7 +462,7 @@ public final class OpeningDatabase {
    * canonicalMove}, counted exactly as the statistics count them (first main-line occurrence, or
    * any line in variation mode). Newest first by date, at most {@code limit}.
    */
-  public List<GameMetadata> gamesPlaying(
+  public List<GameRef> gamesPlaying(
       PositionKey key,
       int canonicalMove,
       OpeningFilter filter,
@@ -470,10 +481,113 @@ public final class OpeningDatabase {
         if (counts && games.containsKey(s.game[i])) ids.add(s.game[i]);
       }
     }
-    List<GameMetadata> result = new ArrayList<>();
-    for (Integer id : ids) result.add(games.get(id).metadata);
-    result.sort(Comparator.comparing(GameMetadata::date).reversed());
+    List<GameRef> result = new ArrayList<>();
+    for (Integer id : ids) {
+      GameEntry e = games.get(id);
+      result.add(new GameRef(id, e.metadata, e.recordOffset >= 0));
+    }
+    result.sort(Comparator.comparing((GameRef r) -> r.metadata().date()).reversed());
     return result.size() > limit ? List.copyOf(result.subList(0, limit)) : result;
+  }
+
+  /** A game behind a statistics row: its id, metadata, and whether its record is stored. */
+  public record GameRef(int id, GameMetadata metadata, boolean hasRecord) {}
+
+  /** Values found in the games of the given collections, each with how many games have it. */
+  public record Facets(
+      Map<String, Integer> players,
+      Map<String, Integer> ranks,
+      Map<String, Integer> events,
+      Map<Integer, Integer> years,
+      int games) {}
+
+  /**
+   * Players, ranks, events and years in {@code collections} (all when empty), most common first.
+   */
+  public Facets facets(Set<Integer> collections) {
+    Map<String, Integer> players = new HashMap<>();
+    Map<String, Integer> ranks = new HashMap<>();
+    Map<String, Integer> events = new HashMap<>();
+    Map<Integer, Integer> years = new HashMap<>();
+    OpeningFilter scope = OpeningFilter.ALL.withCollections(collections);
+    int n = 0;
+    for (GameEntry g : games.values()) {
+      if (!scope.accepts(g.collections, g.metadata)) continue;
+      n++;
+      GameMetadata m = g.metadata;
+      count(players, m.blackPlayer());
+      if (!m.whitePlayer().equals(m.blackPlayer())) count(players, m.whitePlayer());
+      count(ranks, m.blackRank());
+      if (!m.whiteRank().equals(m.blackRank())) count(ranks, m.whiteRank());
+      count(events, m.event());
+      if (m.year() > 0) years.merge(m.year(), 1, Integer::sum);
+    }
+    return new Facets(sorted(players), sorted(ranks), sorted(events), sortedYears(years), n);
+  }
+
+  private static void count(Map<String, Integer> map, String value) {
+    if (value != null && !value.isBlank()) map.merge(value.trim(), 1, Integer::sum);
+  }
+
+  private static Map<String, Integer> sorted(Map<String, Integer> map) {
+    Map<String, Integer> out = new LinkedHashMap<>();
+    map.entrySet().stream()
+        .sorted(
+            Map.Entry.<String, Integer>comparingByValue()
+                .reversed()
+                .thenComparing(Map.Entry.comparingByKey()))
+        .forEach(e -> out.put(e.getKey(), e.getValue()));
+    return out;
+  }
+
+  private static Map<Integer, Integer> sortedYears(Map<Integer, Integer> map) {
+    Map<Integer, Integer> out = new LinkedHashMap<>();
+    map.keySet().stream().sorted(Comparator.reverseOrder()).forEach(y -> out.put(y, map.get(y)));
+    return out;
+  }
+
+  /** The stored main-line SGF of a game, or null when none was stored (imported before v3). */
+  public String record(int gameId) throws IOException {
+    GameEntry e = games.get(gameId);
+    if (e == null || e.recordOffset < 0) return null;
+    try (java.io.RandomAccessFile f =
+        new java.io.RandomAccessFile(dir.resolve(RECORDS).toFile(), "r")) {
+      byte[] packed = new byte[e.recordLength];
+      f.seek(e.recordOffset);
+      f.readFully(packed);
+      try (InputStream in =
+          new java.util.zip.GZIPInputStream(new java.io.ByteArrayInputStream(packed))) {
+        return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+      }
+    }
+  }
+
+  /** Appends the pending games' records to records.bin and remembers where each one is. */
+  private void appendRecords() throws IOException {
+    Path file = dir.resolve(RECORDS);
+    long offset = Files.exists(file) ? Files.size(file) : 0;
+    try (OutputStream out =
+        new BufferedOutputStream(
+            Files.newOutputStream(
+                file,
+                java.nio.file.StandardOpenOption.CREATE,
+                java.nio.file.StandardOpenOption.APPEND))) {
+      for (int k = 0; k < pendingIds.size(); k++) {
+        String text = k < pendingRecords.size() ? pendingRecords.get(k) : null;
+        GameEntry e = games.get(pendingIds.get(k));
+        if (text == null || text.isEmpty() || e == null) continue;
+        java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+        try (OutputStream gz = new java.util.zip.GZIPOutputStream(buf)) {
+          gz.write(text.getBytes(StandardCharsets.UTF_8));
+        }
+        byte[] packed = buf.toByteArray();
+        out.write(packed);
+        e.recordOffset = offset;
+        e.recordLength = packed.length;
+        offset += packed.length;
+      }
+    }
+    dirtyGames = true;
   }
 
   /** Metadata of the games reaching a position (any move); capped. */
@@ -707,6 +821,8 @@ public final class OpeningDatabase {
                 GameMetadata.fromJson(o.getJSONObject("m")),
                 o.optInt("n", 0),
                 o.optString("p", ""));
+        e.recordOffset = o.optLong("ro", -1);
+        e.recordLength = o.optInt("rl", 0);
         games.put(e.id, e);
         byFingerprint.put(e.fingerprint, e.id);
       }
@@ -723,6 +839,10 @@ public final class OpeningDatabase {
         o.put("c", new JSONArray(e.collections));
         o.put("n", e.moves);
         if (!e.prefix.isEmpty()) o.put("p", e.prefix);
+        if (e.recordOffset >= 0) {
+          o.put("ro", e.recordOffset);
+          o.put("rl", e.recordLength);
+        }
         o.put("m", e.metadata.toJson());
         w.write(o.toString());
         w.write('\n');

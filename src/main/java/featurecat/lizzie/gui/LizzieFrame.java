@@ -884,7 +884,7 @@ public class LizzieFrame extends JFrame {
         });
     listScrollpane.getVerticalScrollBar().setUI(new DemoScrollBarUI2(false));
     hiddenColumn(1, listTable);
-    listTable.getColumnModel().getColumn(0).setPreferredWidth(10);
+    listTable.getColumnModel().getColumn(0).setPreferredWidth(44);
     listTable.getColumnModel().getColumn(2).setPreferredWidth(30);
     listTable.getColumnModel().getColumn(3).setPreferredWidth(30);
     listTable.getColumnModel().getColumn(4).setPreferredWidth(45);
@@ -2124,6 +2124,12 @@ public class LizzieFrame extends JFrame {
     openKataGoAutoSetup();
   }
 
+  /** Opens a game from the Opening Explorer at the position after {@code movesPlayed} moves. */
+  void openExplorerGame(String sgf, int movesPlayed) {
+    if (currentGameHasPasteRisk() && !confirmPasteSgfReplace()) return;
+    loadSgfString(sgf, 0, true, true, () -> Lizzie.board.goToMoveNumber(movesPlayed));
+  }
+
   void toggleOpeningExplorer() {
     if (openingExplorer != null) openingExplorer.toggle();
   }
@@ -2658,7 +2664,6 @@ public class LizzieFrame extends JFrame {
       }
     }
     //  onlineDialog = new OnlineDialog();
-    // onlineDialog.applyChangeWeb("https://home.yikeweiqi.com/#/live/room/20595/1/18748590");
 
   }
 
@@ -2714,7 +2719,7 @@ public class LizzieFrame extends JFrame {
         .refreshStyle(
             Math.max(
                 Config.menuHeight - 4,
-                listTable.getFontMetrics(listTable.getFont()).getHeight() + 8));
+                listTable.getFontMetrics(listTable.getFont()).getHeight() + 14));
   }
 
   public void openAnalysisTable() {
@@ -5620,7 +5625,7 @@ public class LizzieFrame extends JFrame {
           private Object mirrorReader;
 
           private boolean sameImport() {
-            BoardHistoryList history = Lizzie.board == null ? null : Lizzie.board.getHistory();
+            BoardHistoryList history = currentHistory();
             return primary != null
                 && !primary.useRemoteCompute
                 && Lizzie.leelaz == primary
@@ -6346,7 +6351,6 @@ public class LizzieFrame extends JFrame {
       if (!showControls) {
         BufferedImage cachedImage = acquirePaintBuffer(width, height);
         Graphics2D g = (Graphics2D) cachedImage.getGraphics();
-        // g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         if (Lizzie.config.isFourSubMode()) {
           int topInset = mainPanel.getInsets().top;
           int leftInset = mainPanel.getInsets().left;
@@ -7551,7 +7555,6 @@ public class LizzieFrame extends JFrame {
               // if (backgroundG.isPresent()) {
               // if (isSmallCap) {
               // }
-              // drawContainer(backgroundG.get(), contx, conty, contw, conth);
               // }
               if (showListPane && isLargeSubboard) {
                 if (!Lizzie.config.showVariationGraph) {
@@ -8491,7 +8494,6 @@ public class LizzieFrame extends JFrame {
 
     List<String> commandsToShow = new ArrayList<>(Arrays.asList(commands));
     // if (Lizzie.leelaz.getDynamicKomi().isPresent()) {
-    // commandsToShow.add(Lizzie.resourceBundle.getString("LizzieFrame.commands.keyD"));
     // }
 
     Graphics2D g = cachedImage.createGraphics();
@@ -9522,7 +9524,6 @@ public class LizzieFrame extends JFrame {
       if (canGoAfterload) goToWinrateGraphTarget(targetNode, false);
     }
     // if (Lizzie.config.showSubBoard && subBoardRenderer.isInside(x, y)) {
-    // Lizzie.config.toggleLargeSubBoard();
     // }
     if (publishedVariationTree != null
         && isCurrentVariationTreeView(publishedVariationTree.view())
@@ -9556,10 +9557,7 @@ public class LizzieFrame extends JFrame {
     return -1;
   }
 
-  public void allow() {
-
-    // Lizzie.leelaz.analyzeAvoid();
-  }
+  public void allow() {}
 
   public boolean iscoordsempty(int x, int y) {
     Optional<int[]> boardCoordinates = boardRenderer.convertScreenToCoordinates(x, y);
@@ -9848,7 +9846,6 @@ public class LizzieFrame extends JFrame {
         }
       }
     }
-    // mouseOverCoordinate = outOfBoundCoordinate;
     Optional<int[]> coords = boardRenderer.convertScreenToCoordinates(x, y);
     boolean inBoard = coords.isPresent();
     if (clickOrder != -1) {
@@ -11465,12 +11462,9 @@ public class LizzieFrame extends JFrame {
       }
       int[] coords = boardCoordinates.get();
       if (coords[0] == startcoords[0] && coords[1] == startcoords[1]) {
-        // System.out.println("拖动前后一致");
         draggedstone = Stone.EMPTY;
         refresh();
       } else {
-        // System.out.println("拖动前后不一致");
-        // System.out.println("拖动的棋子序号:"+draggedmovenumer);
         boolean oriPlaySound = Lizzie.config.playSound;
         Lizzie.config.playSound = false;
         Stone stone = Lizzie.board.getstonestat(coords);
@@ -11686,11 +11680,9 @@ public class LizzieFrame extends JFrame {
       return;
     }
     if (!isShowingPolicy) {
-      // Lizzie.leelaz.isheatmap = true;
       isShowingPolicy = true;
       // if (!Lizzie.leelaz.isPondering()) lastponder = false;
       // else {
-      // lastponder = true;
       // }
       //
       if (!Lizzie.leelaz.isPondering() && Lizzie.board.getData().bestMoves.isEmpty())
@@ -14593,6 +14585,7 @@ public class LizzieFrame extends JFrame {
     double scoreDiff = 0;
     int row;
     int column;
+    String moveName = "";
 
     public Component getTableCellRendererComponent(
         JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
@@ -14613,6 +14606,7 @@ public class LizzieFrame extends JFrame {
       } else isNextMove = false;
 
       String coordsName = table.getValueAt(row, 1).toString();
+      moveName = coordsName;
       int[] coords = new int[] {-2, -2};
       if (!coordsName.startsWith("pas") && coordsName.length() > 1) {
         coords = Board.convertNameToCoordinates(coordsName);
@@ -14667,10 +14661,9 @@ public class LizzieFrame extends JFrame {
             (Graphics2D) g, getText(), getFont(), text, getWidth(), getHeight());
         return;
       }
+      if (column == 0) setText(CandidateTableStyle.rankWithMove(getText(), moveName));
       super.paintComponent(g);
-      if (isPlayoutPercents)
-        CandidateTableStyle.paintShareBar(
-            (Graphics2D) g, Double.parseDouble(mainValue.toString()), getWidth(), getHeight());
+      CandidateTableStyle.paintBars((Graphics2D) g, column, getText(), getWidth(), getHeight());
     }
   }
 

@@ -48,6 +48,21 @@ public final class SgfReader {
       return children;
     }
 
+    /** This node and its main line (first children) as SGF text, without variations. */
+    public String toMainLineSgf() {
+      StringBuilder sb = new StringBuilder("(");
+      for (Node n = this; n != null; n = n.children.isEmpty() ? null : n.children.get(0)) {
+        sb.append(';');
+        for (Map.Entry<String, List<String>> e : n.properties.entrySet()) {
+          sb.append(e.getKey());
+          for (String v : e.getValue()) {
+            sb.append('[').append(v.replace("\\", "\\\\").replace("]", "\\]")).append(']');
+          }
+        }
+      }
+      return sb.append(')').toString();
+    }
+
     void add(String id, String value) {
       properties.computeIfAbsent(id, k -> new ArrayList<>(1)).add(value);
     }

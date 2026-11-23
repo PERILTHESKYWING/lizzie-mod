@@ -39,6 +39,9 @@ public final class SgfGameIndexer {
      */
     public final String prefixDigest;
 
+    /** The game's main line as SGF, for previewing and opening it from the explorer. */
+    public final String record;
+
     IndexedGame(
         GameMetadata metadata,
         String fingerprint,
@@ -47,8 +50,10 @@ public final class SgfGameIndexer {
         long[] keyLo,
         short[] moves,
         byte[] flags,
-        String prefixDigest) {
+        String prefixDigest,
+        String record) {
       this.prefixDigest = prefixDigest;
+      this.record = record;
       this.metadata = metadata;
       this.fingerprint = fingerprint;
       this.mainLineMoves = mainLineMoves;
@@ -139,7 +144,7 @@ public final class SgfGameIndexer {
             root.first("BR"),
             root.first("WR"),
             root.first("DT"),
-            root.first("EV"),
+            firstNonBlank(root.first("EV"), root.first("GN")),
             root.first("RO"),
             root.first("PC"),
             root.first("RE"),
@@ -157,7 +162,8 @@ public final class SgfGameIndexer {
         Arrays.copyOf(lo, count),
         Arrays.copyOf(mv, count),
         Arrays.copyOf(fl, count),
-        moves >= PREFIX_MOVES ? HexFormat.of().formatHex(prefix.digest()) : "");
+        moves >= PREFIX_MOVES ? HexFormat.of().formatHex(prefix.digest()) : "",
+        root.toMainLineSgf());
   }
 
   /**
@@ -240,6 +246,11 @@ public final class SgfGameIndexer {
     if (node.has("B")) return GoPosition.BLACK;
     if (node.has("W")) return GoPosition.WHITE;
     return GoPosition.EMPTY;
+  }
+
+  /** Setup properties (AB/AW/AE/PL) exactly as indexing applies them; for {@link GameReplay}. */
+  static void applySetupForReplay(SgfReader.Node node, GoPosition position) {
+    applySetup(node, position, null);
   }
 
   private static void applySetup(SgfReader.Node node, GoPosition position, MessageDigest digest) {
@@ -327,6 +338,10 @@ public final class SgfGameIndexer {
     } catch (NumberFormatException e) {
       throw new IllegalArgumentException("Bad board size " + sz, e);
     }
+  }
+
+  private static String firstNonBlank(String a, String b) {
+    return a != null && !a.isBlank() ? a : b;
   }
 
   private static double parseDouble(String s) {

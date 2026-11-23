@@ -2,7 +2,6 @@ package featurecat.lizzie.gui;
 
 import featurecat.lizzie.explorer.BoardPositionAdapter;
 import featurecat.lizzie.explorer.CanonicalPosition;
-import featurecat.lizzie.explorer.GameMetadata;
 import featurecat.lizzie.explorer.GoPosition;
 import featurecat.lizzie.explorer.OpeningDatabase;
 import featurecat.lizzie.explorer.OpeningExplorerService;
@@ -48,7 +47,6 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
-import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
@@ -66,9 +64,9 @@ final class OpeningExplorerPanel extends JPanel {
   static final int WIDTH = 280;
   private static final int MAX_BOARD_MARKS = 12;
   private static final int MAX_LISTED_GAMES = 1000;
-  private static final Color BACKGROUND = new Color(0xf7, 0xf7, 0xf5);
-  private static final Color LINE = new Color(0xd8, 0xd8, 0xd4);
-  private static final Color MUTED = new Color(0x60, 0x60, 0x60);
+  private static final Color BACKGROUND = ExplorerTheme.SURFACE;
+  private static final Color LINE = ExplorerTheme.BORDER;
+  private static final Color MUTED = ExplorerTheme.MUTED;
 
   private final Supplier<BoardHistoryList> history;
   private final Runnable relayout;
@@ -93,7 +91,7 @@ final class OpeningExplorerPanel extends JPanel {
   private String lastQueryIdentity;
   private int dataVersion;
   private OpeningExplorerService.ImportHandle runningImport;
-  private JTable lastGamesList;
+  private OpeningGamesWindow lastGamesWindow;
   private final OpeningExplorerMoveRow rowRenderer = new OpeningExplorerMoveRow();
 
   /** Fox access; replaced in tests. */
@@ -161,11 +159,12 @@ final class OpeningExplorerPanel extends JPanel {
     JPanel titleRow = new JPanel(new BorderLayout(4, 0));
     titleRow.setOpaque(false);
     JLabel title = new JLabel(text("title"));
-    title.setFont(title.getFont().deriveFont(Font.BOLD, title.getFont().getSize2D() + 1f));
+    ExplorerTheme.label(title, false, title.getFont().getSize2D() + 1f, Font.BOLD);
     titleRow.add(title, BorderLayout.CENTER);
     JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
     buttons.setOpaque(false);
-    JButton importButton = smallButton(text("import"));
+    JButton importButton = smallButton("＋ " + text("import"));
+    importButton.setToolTipText(text("import"));
     importButton.addActionListener(e -> showImportMenu(importButton));
     JButton more = smallButton("⋯");
     more.setToolTipText(text("more"));
@@ -183,6 +182,14 @@ final class OpeningExplorerPanel extends JPanel {
 
     collectionsButton.setHorizontalAlignment(SwingConstants.LEFT);
     collectionsButton.setFocusable(false);
+    collectionsButton.setBackground(ExplorerTheme.HEADER);
+    collectionsButton.setForeground(ExplorerTheme.TEXT);
+    collectionsButton.setOpaque(true);
+    collectionsButton.setContentAreaFilled(true);
+    collectionsButton.setBorder(
+        BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(ExplorerTheme.BORDER),
+            BorderFactory.createEmptyBorder(4, 8, 4, 8)));
     collectionsButton.setMargin(new java.awt.Insets(2, 6, 2, 6));
     collectionsButton.addActionListener(e -> showCollectionsMenu());
     collectionsButton.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -190,6 +197,7 @@ final class OpeningExplorerPanel extends JPanel {
     header.add(collectionsButton);
     header.add(Box.createVerticalStrut(6));
     summary.setAlignmentX(Component.LEFT_ALIGNMENT);
+    ExplorerTheme.label(summary, false, summary.getFont().getSize2D(), Font.PLAIN);
     header.add(summary);
     return header;
   }
@@ -216,7 +224,8 @@ final class OpeningExplorerPanel extends JPanel {
         });
     JScrollPane scroll = new JScrollPane(table);
     scroll.setBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, LINE));
-    scroll.getViewport().setBackground(Color.WHITE);
+    table.setBackground(ExplorerTheme.SURFACE);
+    scroll.getViewport().setBackground(ExplorerTheme.SURFACE);
     scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
     return scroll;
   }
@@ -242,10 +251,7 @@ final class OpeningExplorerPanel extends JPanel {
   }
 
   private static JButton smallButton(String label) {
-    JButton b = new JButton(label);
-    b.setFocusable(false);
-    b.setMargin(new java.awt.Insets(1, 6, 1, 6));
-    return b;
+    return ExplorerTheme.flat(new JButton(label));
   }
 
   // --------------------------------------------------------------------------- board queries
@@ -298,7 +304,8 @@ final class OpeningExplorerPanel extends JPanel {
     if (total == 0) {
       summary.setText(text("emptyDatabase"));
     } else if (stats.games() == 0) {
-      summary.setText(text("noGames"));
+      summary.setText("<html>" + text("noGames") + "</html>");
+      findLastMatch();
     } else {
       StringBuilder s = new StringBuilder("<html><b>");
       s.append(format("sample", String.format(Locale.ROOT, "%,d", stats.games()))).append("</b>");
@@ -319,6 +326,41 @@ final class OpeningExplorerPanel extends JPanel {
       }
     }
     updateMarks();
+  }
+
+  /** Walks back through the game to the last position the collection still had games for. */
+  private void findLastMatch() {
+    BoardHistoryList h = history.get();
+    if (h == null || h.getCurrentHistoryNode() == null) return;
+    List<featurecat.lizzie.explorer.PositionKey> keys = new ArrayList<>();
+    List<Integer> moveNumbers = new ArrayList<>();
+    BoardHistoryNode node = h.getCurrentHistoryNode();
+    for (int i = 0; i < 400 && node.previous().isPresent(); i++) {
+      node = node.previous().get();
+      BoardData d = node.getData();
+      if (d == null || d.stones == null) break;
+      Stone[] parent = node.previous().map(p -> p.getData().stones).orElse(null);
+      keys.add(
+          BoardPositionAdapter.canonical(
+                  Board.boardWidth, Board.boardHeight, d.stones, parent, d.lastMove, d.blackToPlay)
+              .key());
+      moveNumbers.add(d.moveNumber);
+    }
+    if (keys.isEmpty()) return;
+    String identity = lastQueryIdentity;
+    service.lastMatch(
+        keys,
+        settings.filter(),
+        settings.includeVariations,
+        found -> {
+          if (!java.util.Objects.equals(identity, lastQueryIdentity) || found[0] < 0) return;
+          summary.setText(
+              "<html>"
+                  + text("noGames")
+                  + "<br><span style='color:#B7BCC4'>"
+                  + format("lastMatch", moveNumbers.get(found[0]), found[1])
+                  + "</span></html>");
+        });
   }
 
   private int selectedCanonicalMove() {
@@ -422,72 +464,40 @@ final class OpeningExplorerPanel extends JPanel {
     boardChanged();
   }
 
-  /** Lists the games behind one row (double-click), newest first. */
+  /** Lists the games behind one row (double-click): hover to preview, double-click to open. */
   void showGames(int row) {
     if (position == null || stats == null || row < 0 || row >= model.getSize()) return;
     OpeningStats.MoveStat move = model.moveAt(row);
     String name = moveName(position.toDisplay(move.canonicalMove()), position.width());
+    featurecat.lizzie.explorer.PositionKey key = position.key();
     service.gamesPlaying(
-        position.key(),
+        key,
         move.canonicalMove(),
         settings.filter(),
         settings.includeVariations,
         MAX_LISTED_GAMES,
-        games -> openGamesDialog(name, games));
+        games ->
+            lastGamesWindow =
+                new OpeningGamesWindow(
+                    SwingUtilities.getWindowAncestor(this),
+                    format("gamesTitle", name, games.size()),
+                    games,
+                    key,
+                    service::record,
+                    this::openGame,
+                    this::text));
   }
 
-  private void openGamesDialog(String moveName, List<GameMetadata> games) {
-    String[] columns = {
-      text("colBlack"),
-      text("colWhite"),
-      text("colDate"),
-      text("colEvent"),
-      text("colResult"),
-      text("colSource")
-    };
-    Object[][] rows = new Object[games.size()][];
-    for (int i = 0; i < games.size(); i++) {
-      GameMetadata g = games.get(i);
-      rows[i] =
-          new Object[] {
-            withRank(g.blackPlayer(), g.blackRank()),
-            withRank(g.whitePlayer(), g.whiteRank()),
-            g.date(),
-            g.event(),
-            g.result(),
-            g.source()
-          };
+  /** Opens a game from the games list in the main window at the explorer's position. */
+  private void openGame(String record, int movesPlayed) {
+    if (SwingUtilities.getWindowAncestor(this) instanceof LizzieFrame frame) {
+      frame.openExplorerGame(record, movesPlayed);
     }
-    JTable list =
-        new JTable(new javax.swing.table.DefaultTableModel(rows, columns)) {
-          @Override
-          public boolean isCellEditable(int r, int c) {
-            return false;
-          }
-        };
-    list.setAutoCreateRowSorter(true);
-    list.setFillsViewportHeight(true);
-    lastGamesList = list;
-    if (java.awt.GraphicsEnvironment.isHeadless()) return;
-    javax.swing.JDialog dialog =
-        new javax.swing.JDialog(
-            SwingUtilities.getWindowAncestor(this),
-            format("gamesTitle", moveName, games.size()),
-            java.awt.Dialog.ModalityType.MODELESS);
-    dialog.add(new JScrollPane(list));
-    dialog.setSize(720, 380);
-    dialog.setLocationRelativeTo(this);
-    dialog.setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
-    dialog.setVisible(true);
   }
 
-  /** The table of the games list opened last (for tests). */
-  JTable lastGamesList() {
-    return lastGamesList;
-  }
-
-  private static String withRank(String player, String rank) {
-    return rank.isEmpty() ? player : player + " (" + rank + ")";
+  /** The games window opened last (for tests). */
+  OpeningGamesWindow lastGamesWindow() {
+    return lastGamesWindow;
   }
 
   private void showMoreMenu(Component anchor) {
@@ -594,60 +604,29 @@ final class OpeningExplorerPanel extends JPanel {
   }
 
   private void editFilter() {
-    JTextField player = new JTextField(settings.player, 14);
-    JTextField rank = new JTextField(settings.rank, 14);
-    JTextField event = new JTextField(settings.event, 14);
-    JTextField from = new JTextField(settings.minYear > 0 ? "" + settings.minYear : "", 5);
-    JTextField to = new JTextField(settings.maxYear > 0 ? "" + settings.maxYear : "", 5);
-    JPanel years = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
-    years.add(from);
-    years.add(new JLabel("–"));
-    years.add(to);
-    JPanel form = new JPanel(new GridLayout(0, 2, 6, 4));
-    form.add(new JLabel(text("filterPlayer")));
-    form.add(player);
-    form.add(new JLabel(text("filterRank")));
-    form.add(rank);
-    form.add(new JLabel(text("filterEvent")));
-    form.add(event);
-    form.add(new JLabel(text("filterYears")));
-    form.add(years);
-    Object[] options = {text("ok"), text("clearFilter"), text("cancel")};
-    int answer =
-        JOptionPane.showOptionDialog(
-            this,
-            form,
-            text("filter"),
-            JOptionPane.DEFAULT_OPTION,
-            JOptionPane.PLAIN_MESSAGE,
-            null,
-            options,
-            options[0]);
-    if (answer == 0) {
-      settings.player = player.getText().trim();
-      settings.rank = rank.getText().trim();
-      settings.event = event.getText().trim();
-      settings.minYear = parseYear(from.getText());
-      settings.maxYear = parseYear(to.getText());
-    } else if (answer == 1) {
-      settings.player = "";
-      settings.rank = "";
-      settings.event = "";
-      settings.minYear = 0;
-      settings.maxYear = 0;
-    } else {
-      return;
-    }
-    saveAndRequery();
-  }
-
-  private static int parseYear(String s) {
-    try {
-      int y = Integer.parseInt(s.trim());
-      return y >= 1000 && y <= 2999 ? y : 0;
-    } catch (NumberFormatException e) {
-      return 0;
-    }
+    service.facets(
+        settings.collections,
+        facets -> {
+          OpeningFilterDialog dialog =
+              new OpeningFilterDialog(
+                  facets,
+                  new OpeningFilterDialog.Choice(
+                      settings.player,
+                      settings.rank,
+                      settings.event,
+                      settings.minYear,
+                      settings.maxYear),
+                  this::text);
+          OpeningFilterDialog.Choice choice =
+              dialog.show(this, text("filter"), text("ok"), text("clearFilter"), text("cancel"));
+          if (choice == null) return;
+          settings.player = choice.player();
+          settings.rank = choice.rank();
+          settings.event = choice.event();
+          settings.minYear = choice.minYear();
+          settings.maxYear = choice.maxYear();
+          saveAndRequery();
+        });
   }
 
   private void openFolder() {

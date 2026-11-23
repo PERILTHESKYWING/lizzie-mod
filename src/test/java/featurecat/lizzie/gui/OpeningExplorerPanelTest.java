@@ -146,16 +146,28 @@ class OpeningExplorerPanelTest {
     OpeningExplorerPanel p = panel.get();
     waitFor(() -> p.rowCount() == 2 && p.rowAt(0).detail().startsWith("2 "));
     SwingUtilities.invokeAndWait(() -> panel.get().showGames(0));
-    waitFor(() -> panel.get().lastGamesList() != null);
+    waitFor(() -> panel.get().lastGamesWindow() != null);
     SwingUtilities.invokeAndWait(
         () -> {
-          JTable games = panel.get().lastGamesList();
+          JTable games = panel.get().lastGamesWindow().table();
           assertEquals(2, games.getRowCount());
           assertEquals("New", games.getValueAt(0, 0)); // newest first
           assertEquals("Old (9p)", games.getValueAt(1, 0));
           assertEquals("Cup A", games.getValueAt(1, 3));
           assertEquals("B+R", games.getValueAt(1, 4));
         });
+    // Hover preview: the stored record is replayed to this position (2 moves played, B[pp] next).
+    java.util.concurrent.atomic.AtomicReference<OpeningGamesWindow.Lookup> lookup =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    SwingUtilities.invokeAndWait(() -> panel.get().lastGamesWindow().snapshotFor(0, lookup::set));
+    waitFor(() -> lookup.get() != null);
+    assertEquals(2, lookup.get().snapshot().movesPlayed());
+    assertEquals(
+        featurecat.lizzie.explorer.SgfGameIndexer.class.getSimpleName().length() > 0
+            ? 15 + 15 * 19
+            : 0,
+        lookup.get().snapshot().nextMove()); // pp = (15, 15)
+    assertTrue(lookup.get().record().contains("PB[New]"));
     assertTrue(Files.exists(dir.resolve("library.json")));
   }
 }

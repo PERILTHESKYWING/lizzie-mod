@@ -103,14 +103,55 @@ final class CandidateTableStyle {
     g.drawString(tag, tagX + 4, tagY + 1 + tagMetrics.getAscent());
   }
 
-  /** A thin bar along the bottom of the share cell, as long as the share of all visits. */
-  static void paintShareBar(Graphics2D g, double percent, int width, int height) {
-    int left = 4;
+  private static final Color WINRATE_FILL = new Color(0x5B, 0x9B, 0xE8);
+
+  /** Column of the win rate and of the share of visits in the candidate table. */
+  static final int WINRATE_COLUMN = 2;
+
+  static final int SHARE_COLUMN = 4;
+
+  /** "1 Q4": the rank with the move, so the table names the point it is talking about. */
+  static String rankWithMove(String rank, String move) {
+    String r = rank == null ? "" : rank.trim();
+    String m = move == null ? "" : move.trim();
+    if (m.isEmpty() || m.startsWith("pas") || r.isEmpty() || r.contains(m)) return r;
+    return r + "  " + m;
+  }
+
+  /** The number at the start of a cell ("77.7", "77.7(-0.3)"), or NaN. */
+  static double leadingNumber(String cell) {
+    if (cell == null) return Double.NaN;
+    java.util.regex.Matcher m =
+        java.util.regex.Pattern.compile("^\\s*(-?\\d+(?:\\.\\d+)?)").matcher(cell);
+    return m.find() ? Double.parseDouble(m.group(1)) : Double.NaN;
+  }
+
+  /** The bars under the win-rate and share cells (other columns are left alone). */
+  static void paintBars(Graphics2D g, int column, String cell, int width, int height) {
+    if (column != WINRATE_COLUMN && column != SHARE_COLUMN) return;
+    double percent = leadingNumber(cell);
+    if (Double.isNaN(percent)) return;
+    paintBar(g, percent, width, height, column == WINRATE_COLUMN ? WINRATE_FILL : SHARE_FILL);
+  }
+
+  /** A rounded bar along the bottom of a cell, as long as {@code percent} of the cell. */
+  static void paintBar(Graphics2D g, double percent, int width, int height, Color fill) {
+    int left = 5;
     int track = Math.max(1, width - 2 * left);
-    int y = height - 4;
+    int barHeight = 4;
+    int y = height - barHeight - 3;
+    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
     g.setColor(SHARE_TRACK);
-    g.fillRect(left, y, track, 2);
-    g.setColor(SHARE_FILL);
-    g.fillRect(left, y, (int) Math.round(track * Math.max(0, Math.min(100, percent)) / 100), 2);
+    g.fillRoundRect(left, y, track, barHeight, barHeight, barHeight);
+    int length = (int) Math.round(track * Math.max(0, Math.min(100, percent)) / 100);
+    if (length > 0) {
+      g.setColor(fill);
+      g.fillRoundRect(left, y, Math.max(length, barHeight), barHeight, barHeight, barHeight);
+    }
+  }
+
+  /** The share bar alone (kept for callers that draw only the share of visits). */
+  static void paintShareBar(Graphics2D g, double percent, int width, int height) {
+    paintBar(g, percent, width, height, SHARE_FILL);
   }
 }

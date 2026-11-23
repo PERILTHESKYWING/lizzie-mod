@@ -25,13 +25,14 @@ public class TopHeaderPanel extends JPanel {
   private final GroupPanel leftGroup;
   private final GroupPanel centerGroup;
   private final GroupPanel rightGroup;
+  private final TopBarCustomization customization = createCustomization();
 
   public TopHeaderPanel() {
     setLayout(new BorderLayout());
     setOpaque(false);
     setBorder(new EmptyBorder(2, 6, 2, 6));
 
-    contentPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, 2, 2));
+    contentPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, 2, 2, this::applyCustomization));
     contentPanel.setOpaque(false);
 
     leftGroup = new GroupPanel();
@@ -42,6 +43,62 @@ public class TopHeaderPanel extends JPanel {
     rightArea = rightGroup;
 
     super.add(contentPanel, BorderLayout.CENTER);
+    javax.swing.JButton customize = new javax.swing.JButton("⚙");
+    customize.setFocusable(false);
+    customize.setMargin(new Insets(0, 6, 0, 6));
+    customize.setContentAreaFilled(false);
+    customize.setBorderPainted(false);
+    customize.setOpaque(false);
+    customize.setFont(customize.getFont().deriveFont(15f));
+    customize.setToolTipText(text("TopBar.button"));
+    customize.addActionListener(e -> customize());
+    super.add(customize, BorderLayout.EAST);
+  }
+
+  private static TopBarCustomization createCustomization() {
+    java.nio.file.Path file = null;
+    try {
+      file = featurecat.lizzie.Config.resolvedWorkDirPath().resolve(TopBarCustomization.FILE);
+    } catch (RuntimeException e) {
+      // no work folder (tests): the choice is not persisted
+    }
+    return new TopBarCustomization(file);
+  }
+
+  private void applyCustomization() {
+    if (customization != null && contentPanel != null) customization.apply(contentPanel);
+  }
+
+  /** Opens the checklist of toolbar items. */
+  void customize() {
+    java.util.Map<String, String> t = new java.util.HashMap<>();
+    for (String k : new String[] {"title", "hint", "showAll", "hideAll"}) {
+      t.put(k, text("TopBar." + k));
+    }
+    if (customization.showDialog(this, contentPanel, t)) {
+      applyCustomization();
+      contentPanel.revalidate();
+      revalidate();
+      repaint();
+      java.awt.Window w = SwingUtilities.getWindowAncestor(this);
+      if (w instanceof LizzieFrame frame) frame.reSetLoc();
+    }
+  }
+
+  TopBarCustomization customization() {
+    return customization;
+  }
+
+  JPanel content() {
+    return contentPanel;
+  }
+
+  private static String text(String key) {
+    try {
+      return java.util.ResourceBundle.getBundle("l10n.DisplayStrings").getString(key);
+    } catch (java.util.MissingResourceException e) {
+      return key;
+    }
   }
 
   public void addSeparator(Dimension dimension) {
@@ -168,8 +225,17 @@ public class TopHeaderPanel extends JPanel {
   }
 
   private static final class WrapLayout extends FlowLayout {
-    private WrapLayout(int align, int hgap, int vgap) {
+    private final Runnable beforeLayout;
+
+    private WrapLayout(int align, int hgap, int vgap, Runnable beforeLayout) {
       super(align, hgap, vgap);
+      this.beforeLayout = beforeLayout;
+    }
+
+    @Override
+    public void layoutContainer(Container target) {
+      beforeLayout.run();
+      super.layoutContainer(target);
     }
 
     @Override
@@ -185,6 +251,7 @@ public class TopHeaderPanel extends JPanel {
     }
 
     private Dimension layoutSize(Container target, boolean preferred) {
+      beforeLayout.run();
       synchronized (target.getTreeLock()) {
         int targetWidth = target.getSize().width;
         if (targetWidth <= 0) {

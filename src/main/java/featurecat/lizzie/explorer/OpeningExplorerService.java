@@ -204,17 +204,83 @@ public final class OpeningExplorerService implements AutoCloseable {
       OpeningFilter filter,
       boolean includeVariations,
       int limit,
-      Consumer<List<GameMetadata>> result) {
+      Consumer<List<OpeningDatabase.GameRef>> result) {
     worker.execute(
         () -> {
-          List<GameMetadata> list;
+          List<OpeningDatabase.GameRef> list;
           try {
             list = db().gamesPlaying(key, canonicalMove, filter, includeVariations, limit);
           } catch (IOException | RuntimeException e) {
             LOGGER.warn("Listing opening games failed", e);
             list = List.of();
           }
-          List<GameMetadata> answer = list;
+          List<OpeningDatabase.GameRef> answer = list;
+          callbacks.execute(() -> result.accept(answer));
+        });
+  }
+
+  /** Players, ranks, events and years found in the given collections. */
+  public void facets(java.util.Set<Integer> collections, Consumer<OpeningDatabase.Facets> result) {
+    worker.execute(
+        () -> {
+          OpeningDatabase.Facets f;
+          try {
+            f = db().facets(collections);
+          } catch (IOException | RuntimeException e) {
+            f =
+                new OpeningDatabase.Facets(
+                    java.util.Map.of(),
+                    java.util.Map.of(),
+                    java.util.Map.of(),
+                    java.util.Map.of(),
+                    0);
+          }
+          OpeningDatabase.Facets answer = f;
+          callbacks.execute(() -> result.accept(answer));
+        });
+  }
+
+  /** The stored record of a game, or null. */
+  public void record(int gameId, Consumer<String> result) {
+    worker.execute(
+        () -> {
+          String text;
+          try {
+            text = db().record(gameId);
+          } catch (IOException | RuntimeException e) {
+            LOGGER.warn("Reading game record {} failed", gameId, e);
+            text = null;
+          }
+          String answer = text;
+          callbacks.execute(() -> result.accept(answer));
+        });
+  }
+
+  /**
+   * Walks back from the newest position: the first one that games in the filter reached, as {@code
+   * {index, games}} (index into {@code keys}, newest first), or {@code {-1, 0}}.
+   */
+  public void lastMatch(
+      List<PositionKey> keys,
+      OpeningFilter filter,
+      boolean includeVariations,
+      Consumer<int[]> result) {
+    worker.execute(
+        () -> {
+          int[] found = {-1, 0};
+          try {
+            OpeningDatabase d = db();
+            for (int i = 0; i < keys.size(); i++) {
+              int games = d.query(keys.get(i), filter, includeVariations).games();
+              if (games > 0) {
+                found = new int[] {i, games};
+                break;
+              }
+            }
+          } catch (IOException | RuntimeException e) {
+            LOGGER.warn("Searching the last matching position failed", e);
+          }
+          int[] answer = found;
           callbacks.execute(() -> result.accept(answer));
         });
   }
