@@ -106,6 +106,9 @@ final class CandidateTableStyle {
   private static final Color WINRATE_FILL = new Color(0x5B, 0x9B, 0xE8);
 
   /** Column of the win rate and of the share of visits in the candidate table. */
+  /** Space added to the font height for a row, leaving room for the bar under the text. */
+  static final int ROW_PADDING = 14;
+
   static final int WINRATE_COLUMN = 2;
 
   static final int SHARE_COLUMN = 4;

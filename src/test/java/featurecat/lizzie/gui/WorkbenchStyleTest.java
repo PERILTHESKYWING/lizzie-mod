@@ -287,7 +287,9 @@ class WorkbenchStyleTest {
               int headerHeight = header.getPreferredSize().height;
               int baseline =
                   Math.max(
-                      Config.menuHeight - 4, table.getFontMetrics(table.getFont()).getHeight() + 8);
+                      Config.menuHeight - 4,
+                      table.getFontMetrics(table.getFont()).getHeight()
+                          + CandidateTableStyle.ROW_PADDING);
               int chrome =
                   frame.listScrollpane.getViewport().getY()
                       + frame.listScrollpane.getInsets().bottom;

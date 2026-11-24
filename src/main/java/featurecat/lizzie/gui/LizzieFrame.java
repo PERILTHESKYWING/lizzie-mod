@@ -2719,12 +2719,11 @@ public class LizzieFrame extends JFrame {
         .refreshStyle(
             Math.max(
                 Config.menuHeight - 4,
-                listTable.getFontMetrics(listTable.getFont()).getHeight() + 14));
+                listTable.getFontMetrics(listTable.getFont()).getHeight()
+                    + CandidateTableStyle.ROW_PADDING));
   }
 
   public void openAnalysisTable() {
-    //	  if(!isBatchAna||Batchfiles.size()==0)
-    //		  return;
     if (analysisTable == null) {
       analysisTable = new AnalysisTable();
       analysisTable.frame.setVisible(true);
