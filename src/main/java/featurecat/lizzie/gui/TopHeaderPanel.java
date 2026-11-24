@@ -25,9 +25,15 @@ public class TopHeaderPanel extends JPanel {
   private final GroupPanel leftGroup;
   private final GroupPanel centerGroup;
   private final GroupPanel rightGroup;
-  private final TopBarCustomization customization = createCustomization();
+  private final TopBarCustomization customization;
 
   public TopHeaderPanel() {
+    this(defaultCustomizationFile());
+  }
+
+  /** {@code customizationFile} keeps the toolbar choice; null keeps it in memory only. */
+  TopHeaderPanel(java.nio.file.Path customizationFile) {
+    customization = new TopBarCustomization(customizationFile);
     setLayout(new BorderLayout());
     setOpaque(false);
     setBorder(new EmptyBorder(2, 6, 2, 6));
@@ -55,14 +61,12 @@ public class TopHeaderPanel extends JPanel {
     super.add(customize, BorderLayout.EAST);
   }
 
-  private static TopBarCustomization createCustomization() {
-    java.nio.file.Path file = null;
+  private static java.nio.file.Path defaultCustomizationFile() {
     try {
-      file = featurecat.lizzie.Config.resolvedWorkDirPath().resolve(TopBarCustomization.FILE);
+      return featurecat.lizzie.Config.resolvedWorkDirPath().resolve(TopBarCustomization.FILE);
     } catch (RuntimeException e) {
-      // no work folder (tests): the choice is not persisted
+      return null; // no work folder: the choice is not persisted
     }
-    return new TopBarCustomization(file);
   }
 
   private void applyCustomization() {

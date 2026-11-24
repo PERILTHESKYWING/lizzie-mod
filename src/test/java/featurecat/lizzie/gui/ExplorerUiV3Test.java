@@ -22,7 +22,8 @@ class ExplorerUiV3Test {
 
   @Test
   void toolbarItemsAreHiddenByLabelAndStrandedSeparatorsGoToo() {
-    TopHeaderPanel bar = new TopHeaderPanel();
+    Path saved = tmp.resolve("toolbar").resolve(TopBarCustomization.FILE);
+    TopHeaderPanel bar = new TopHeaderPanel(saved);
     JButton fox = new JButton("Fox Kifu");
     JButton tencent = new JButton("Tencent");
     JPanel komi = new JPanel();
@@ -48,6 +49,8 @@ class ExplorerUiV3Test {
     c.apply(bar.content());
     assertTrue(fox.isVisible());
     assertTrue(items.get(2).isVisible());
+    // the choice is saved where the panel was told to save it, not in the work folder
+    assertTrue(java.nio.file.Files.isRegularFile(saved));
   }
 
   @Test
