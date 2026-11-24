@@ -318,10 +318,11 @@ class OpeningExplorerCorrectnessTest {
     assertEquals(2, dd.rawOccurrences());
     assertEquals(GoPosition.PASS, p.toDisplay(GoPosition.PASS));
     // The games list follows the same rule: game a voted "pass", so only game b played dd.
-    List<GameMetadata> ddGames =
+    List<OpeningDatabase.GameRef> ddGames =
         db.gamesPlaying(p.key(), p.canonicalMove(pt("dd", 19)), OpeningFilter.ALL, false, 10);
     assertEquals(1, ddGames.size());
-    assertEquals("b", ddGames.get(0).blackPlayer());
+    assertEquals("b", ddGames.get(0).metadata().blackPlayer());
+    assertTrue(ddGames.get(0).hasRecord());
     assertEquals(1, db.gamesPlaying(p.key(), GoPosition.PASS, OpeningFilter.ALL, false, 10).size());
   }
 

@@ -47,9 +47,10 @@ class CandidateTableStyleTest {
 
   @Test
   void shareBarIsAsLongAsTheShare() {
+    // A 4-pixel rounded bar on a 90-pixel track; the rounded ends blend into the track.
     assertEquals(0, filledLength(0));
-    assertTrue(Math.abs(filledLength(50) - 46) <= 1, "half of the 92-pixel track");
-    assertEquals(92, filledLength(100));
+    assertTrue(Math.abs(filledLength(50) - 45) <= 3, "half of the 90-pixel track");
+    assertTrue(Math.abs(filledLength(100) - 90) <= 3, "the whole track");
   }
 
   private static BufferedImage paintRank(String cell, Font font) {
@@ -67,7 +68,7 @@ class CandidateTableStyleTest {
     g.dispose();
     int fill = new Color(0x7F, 0xB5, 0xA8).getRGB();
     int length = 0;
-    for (int x = 0; x < 100; x++) if (image.getRGB(x, 20) == fill) length++;
+    for (int x = 0; x < 100; x++) if (image.getRGB(x, 19) == fill) length++;
     return length;
   }
 

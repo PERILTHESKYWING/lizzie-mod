@@ -24,14 +24,14 @@ final class OpeningExplorerMoveRow extends JComponent
   record Row(String move, double percent, String detail, boolean top) {}
 
   static final int HEIGHT = 36;
-  private static final Color TRACK = new Color(0xe8, 0xeb, 0xf0);
+  private static final Color TRACK = ExplorerTheme.TRACK;
   private Color topBar = new Color(0x2f, 0x6f, 0xd6);
   private Color bar = new Color(0x7d, 0xa6, 0xe6);
   private Color selectedBar = new Color(0xeb, 0x7a, 0x1e);
-  private Color selectedBg = new Color(0xfd, 0xf1, 0xe6);
-  private static final Color TEXT = new Color(0x1e, 0x1e, 0x1e);
-  private static final Color MUTED = new Color(0x70, 0x70, 0x70);
-  private static final Color SEPARATOR = new Color(0xee, 0xee, 0xec);
+  private Color selectedBg = new Color(0x4A, 0x36, 0x27);
+  private static final Color TEXT = ExplorerTheme.TEXT;
+  private static final Color MUTED = ExplorerTheme.MUTED;
+  private static final Color SEPARATOR = ExplorerTheme.BORDER;
 
   private Row row = new Row("", 0, "", false);
   private boolean selected;
@@ -48,7 +48,7 @@ final class OpeningExplorerMoveRow extends JComponent
     topBar = top;
     bar = blend(top, Color.WHITE, 0.4);
     selectedBar = selected;
-    selectedBg = blend(selected, Color.WHITE, 0.9);
+    selectedBg = blend(selected, ExplorerTheme.SURFACE, 0.78);
   }
 
   private static Color blend(Color a, Color b, double towardB) {
@@ -81,7 +81,7 @@ final class OpeningExplorerMoveRow extends JComponent
           RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
       int w = getWidth();
       int h = getHeight();
-      g.setColor(selected ? selectedBg : Color.WHITE);
+      g.setColor(selected ? selectedBg : ExplorerTheme.SURFACE);
       g.fillRect(0, 0, w, h);
       g.setColor(SEPARATOR);
       g.drawLine(0, h - 1, w, h - 1);
