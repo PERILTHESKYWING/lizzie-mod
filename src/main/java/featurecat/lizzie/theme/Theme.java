@@ -26,6 +26,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Theme Allow to load the external image & theme config */
 public class Theme {
@@ -44,6 +46,7 @@ public class Theme {
     {0, 210, 210}
   };
 
+  private static final Logger LOGGER = LoggerFactory.getLogger(Theme.class);
   BufferedImage blackStoneCached = null;
   BufferedImage whiteStoneCached = null;
   BufferedImage boardCached = null;
@@ -141,6 +144,30 @@ public class Theme {
 
   public String blackStoneImageString() {
     return this.path + config.optString("black-stone-image", "black.png");
+  }
+
+  /**
+   * Optional per-point stone images ({@code "black-stone-variants": ["black.png", "black_1.png"]}).
+   * Empty when the theme has none or none can be read.
+   */
+  public List<BufferedImage> stoneVariants(boolean black) {
+    List<BufferedImage> out = new ArrayList<>();
+    JSONArray names = config.optJSONArray(black ? "black-stone-variants" : "white-stone-variants");
+    if (names == null) return out;
+    for (int i = 0; i < names.length(); i++) {
+      try {
+        BufferedImage img = readConfiguredImage(names.optString(i), this.path);
+        if (img != null) out.add(img);
+      } catch (IOException e) {
+        LOGGER.warn("Unreadable stone image {} in theme {}", names.optString(i), path, e);
+      }
+    }
+    return out;
+  }
+
+  /** Strength of the soft light falloff from the upper left over board and stones (0 = none). */
+  public double lightFalloff() {
+    return config.optDouble("light-falloff", 0);
   }
 
   public BufferedImage blackStone() {

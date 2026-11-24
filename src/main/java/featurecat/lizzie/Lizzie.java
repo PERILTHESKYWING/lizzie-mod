@@ -364,6 +364,7 @@ public class Lizzie {
     }
     bootstrapLogging();
     StandardErrorCapture.install();
+    featurecat.lizzie.theme.BundledThemes.install(java.nio.file.Path.of("theme"));
     config = new Config();
     LoggingRuntime.current().ifPresent(runtime -> runtime.applySettings(config.loggingSettings));
     logPersistedLoggingSettingsApplied();
