@@ -32,19 +32,34 @@ import org.slf4j.LoggerFactory;
  * (for example "Komi", "Rules", "Fox Kifu"); the unticked ones are hidden every time the toolbar is
  * laid out, so the choice survives the toolbar being rebuilt. Separators with nothing visible
  * between them are hidden too. The choice is kept in {@code top-toolbar.json} in the work folder.
+ *
+ * <p>Since version 2 the file lists the items to <em>show</em>; without such a file the toolbar
+ * shows only the default set (the everyday buttons), everything else stays in the menus.
  */
 final class TopBarCustomization {
   private static final Logger LOGGER = LoggerFactory.getLogger(TopBarCustomization.class);
   static final String FILE = "top-toolbar.json";
 
+  /** Client property naming a toolbar item whose own texts would name it wrongly (a panel). */
+  static final String LABEL = "topBar.label";
+
   private final Path file;
   private final Set<String> hidden = new LinkedHashSet<>();
+
+  /** The items to show (version 2), or null when the older "hidden" list is used. */
+  private Set<String> shown;
 
   /** Components this class hid, so un-ticking can show exactly those again. */
   private final Map<Component, Boolean> hiddenByUs = new IdentityHashMap<>();
 
   TopBarCustomization(Path file) {
+    this(file, null);
+  }
+
+  /** {@code defaultShown}: what to show when no version 2 choice was saved; null shows all. */
+  TopBarCustomization(Path file, Set<String> defaultShown) {
     this.file = file;
+    if (defaultShown != null) shown = new LinkedHashSet<>(defaultShown);
     load();
   }
 
@@ -53,13 +68,28 @@ final class TopBarCustomization {
   }
 
   void setHidden(Set<String> labels) {
+    shown = null;
     hidden.clear();
     hidden.addAll(labels);
     save();
   }
 
+  void setShown(Set<String> labels) {
+    shown = new LinkedHashSet<>(labels);
+    hidden.clear();
+    save();
+  }
+
+  boolean isHidden(String label) {
+    if (label.isEmpty()) return false;
+    return shown != null ? !shown.contains(label) : hidden.contains(label);
+  }
+
   /** The text that names a toolbar item, or "" when it has none (it then stays visible). */
   static String labelOf(Component c) {
+    if (c instanceof JComponent j && j.getClientProperty(LABEL) instanceof String named) {
+      return clean(named);
+    }
     String text = ownText(c);
     if (!text.isEmpty()) return text;
     if (c instanceof Container container) {
@@ -115,7 +145,7 @@ final class TopBarCustomization {
     for (Component c : items) {
       if (isSeparator(c)) continue;
       String label = labelOf(c);
-      boolean hide = !label.isEmpty() && hidden.contains(label);
+      boolean hide = isHidden(label);
       if (hide && c.isVisible()) {
         c.setVisible(false);
         hiddenByUs.put(c, Boolean.TRUE);
@@ -154,6 +184,28 @@ final class TopBarCustomization {
     if (hiddenByUs.remove(c) != null) c.setVisible(true);
   }
 
+  /**
+   * Makes the toolbar item holding {@code target} visible and remembers it as shown, for features
+   * that bring a hidden toolbar control forward (Search features).
+   */
+  void reveal(Container content, Component target) {
+    for (Component item : items(content)) {
+      if (isSeparator(item)) continue;
+      if (item == target || (item instanceof Container box && box.isAncestorOf(target))) {
+        String label = labelOf(item);
+        if (!label.isEmpty() && isHidden(label)) {
+          if (shown != null) shown.add(label);
+          else hidden.remove(label);
+          save();
+        }
+        hiddenByUs.remove(item);
+        item.setVisible(true);
+        apply(content);
+        return;
+      }
+    }
+  }
+
   /** Labels of the items that can be chosen, in toolbar order. */
   List<String> choosableLabels(Container content) {
     Set<String> labels = new LinkedHashSet<>();
@@ -172,7 +224,7 @@ final class TopBarCustomization {
     JPanel list = new JPanel(new GridLayout(0, 2, 12, 2));
     List<JCheckBox> boxes = new ArrayList<>();
     for (String label : labels) {
-      JCheckBox box = new JCheckBox(label, !hidden.contains(label));
+      JCheckBox box = new JCheckBox(label, !isHidden(label));
       boxes.add(box);
       list.add(box);
     }
@@ -200,16 +252,23 @@ final class TopBarCustomization {
             JOptionPane.PLAIN_MESSAGE);
     if (answer != JOptionPane.OK_OPTION) return false;
     Set<String> next = new LinkedHashSet<>();
-    for (JCheckBox b : boxes) if (!b.isSelected()) next.add(b.getText());
-    setHidden(next);
+    for (JCheckBox b : boxes) if (b.isSelected()) next.add(b.getText());
+    setShown(next);
     return true;
   }
 
   private void load() {
     if (file == null || !Files.isRegularFile(file)) return;
     try {
-      JSONArray a =
-          new JSONObject(Files.readString(file, StandardCharsets.UTF_8)).optJSONArray("hidden");
+      JSONObject json = new JSONObject(Files.readString(file, StandardCharsets.UTF_8));
+      JSONArray s = json.optJSONArray("shown");
+      if (s != null) {
+        shown = new LinkedHashSet<>();
+        for (int i = 0; i < s.length(); i++) shown.add(s.optString(i));
+        return;
+      }
+      if (shown != null) return; // an older "hidden" list gives way to the new default set
+      JSONArray a = json.optJSONArray("hidden");
       if (a != null) for (int i = 0; i < a.length(); i++) hidden.add(a.optString(i));
     } catch (IOException | RuntimeException e) {
       LOGGER.warn("Ignoring unreadable {}", file, e);
@@ -222,7 +281,10 @@ final class TopBarCustomization {
       Files.createDirectories(file.getParent());
       Files.writeString(
           file,
-          new JSONObject().put("hidden", new JSONArray(hidden)).toString(2),
+          (shown != null
+                  ? new JSONObject().put("version", 2).put("shown", new JSONArray(shown))
+                  : new JSONObject().put("hidden", new JSONArray(hidden)))
+              .toString(2),
           StandardCharsets.UTF_8);
     } catch (IOException e) {
       LOGGER.warn("Could not save {}", file, e);

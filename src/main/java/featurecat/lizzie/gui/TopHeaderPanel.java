@@ -28,12 +28,16 @@ public class TopHeaderPanel extends JPanel {
   private final TopBarCustomization customization;
 
   public TopHeaderPanel() {
-    this(defaultCustomizationFile());
+    this(defaultCustomizationFile(), defaultShown());
   }
 
   /** {@code customizationFile} keeps the toolbar choice; null keeps it in memory only. */
   TopHeaderPanel(java.nio.file.Path customizationFile) {
-    customization = new TopBarCustomization(customizationFile);
+    this(customizationFile, null);
+  }
+
+  TopHeaderPanel(java.nio.file.Path customizationFile, java.util.Set<String> defaultShown) {
+    customization = new TopBarCustomization(customizationFile, defaultShown);
     setLayout(new BorderLayout());
     setOpaque(false);
     setBorder(new EmptyBorder(2, 6, 2, 6));
@@ -61,6 +65,32 @@ public class TopHeaderPanel extends JPanel {
     super.add(customize, BorderLayout.EAST);
   }
 
+  /** Keys of the everyday buttons the toolbar shows until the user picks their own. */
+  static final java.util.List<String> DEFAULT_SHOWN_KEYS =
+      java.util.List.of(
+          "Menu.foxKifuButton",
+          "Menu.playerStrengthEstimateButton",
+          "Menu.komi",
+          "Menu.rulesBtn",
+          "Menu.reanalyzeBtn",
+          "Menu.newGameBtn",
+          "Menu.gobanBtn",
+          "Menu.btnHawkeye.toolTipText",
+          "FunctionSearch.title",
+          "TopBar.updateMod",
+          "TopBar.updateModel",
+          "TopBar.theme");
+
+  /** The default buttons' labels in the current language. */
+  static java.util.Set<String> defaultShown() {
+    java.util.Set<String> labels = new java.util.LinkedHashSet<>();
+    for (String key : DEFAULT_SHOWN_KEYS) {
+      javax.swing.JLabel probe = new javax.swing.JLabel(text(key));
+      labels.add(TopBarCustomization.labelOf(probe));
+    }
+    return labels;
+  }
+
   private static java.nio.file.Path defaultCustomizationFile() {
     try {
       return featurecat.lizzie.Config.resolvedWorkDirPath().resolve(TopBarCustomization.FILE);
@@ -71,6 +101,13 @@ public class TopHeaderPanel extends JPanel {
 
   private void applyCustomization() {
     if (customization != null && contentPanel != null) customization.apply(contentPanel);
+  }
+
+  /** Shows the toolbar item holding {@code target}, even if the user's choice had hidden it. */
+  public void reveal(java.awt.Component target) {
+    if (customization == null || contentPanel == null || target == null) return;
+    customization.reveal(contentPanel, target);
+    contentPanel.revalidate();
   }
 
   /** Opens the checklist of toolbar items. */
@@ -97,9 +134,12 @@ public class TopHeaderPanel extends JPanel {
     return contentPanel;
   }
 
+  /** Strings in the language LizzieYzy is set to (not the computer's), like the toolbar items. */
   private static String text(String key) {
     try {
-      return java.util.ResourceBundle.getBundle("l10n.DisplayStrings").getString(key);
+      java.util.ResourceBundle bundle = featurecat.lizzie.Lizzie.resourceBundle;
+      if (bundle == null) bundle = java.util.ResourceBundle.getBundle("l10n.DisplayStrings");
+      return bundle.getString(key);
     } catch (java.util.MissingResourceException e) {
       return key;
     }

@@ -66,6 +66,9 @@ public class SubBoardRenderer {
   private BufferedImage heatimage = emptyImage;
 
   private BufferedImage cachedBoardImage = emptyImage;
+  // the theme the cached board and stones came from; a theme switch replaces the Theme object
+  private featurecat.lizzie.theme.Theme cachedTheme;
+  private ThemedStones themedStones;
   private BufferedImage cachedWallpaperImage = emptyImage;
   // private BufferedImage cachedStonesShadowImage = emptyImage;
   // private BufferedImage cachedStonesShadowImagedraged = emptyImage;
@@ -174,7 +177,19 @@ public class SubBoardRenderer {
 
   public void reDrawGobanAnyway() {
     cachedBoardWidth = -1;
+    cachedBoardImage = emptyImage;
+    themedStones = null;
     invalidateBranchCache();
+  }
+
+  /** Drops the cached board and stones when the theme was switched, so this board follows. */
+  private void followTheme() {
+    featurecat.lizzie.theme.Theme theme = Lizzie.config.theme;
+    if (theme != cachedTheme || themedStones == null) {
+      if (theme != cachedTheme) cachedBoardImage = emptyImage;
+      cachedTheme = theme;
+      themedStones = ThemedStones.of(theme);
+    }
   }
 
   public void reDrawBackgroundAnyway() {
@@ -422,11 +437,13 @@ public class SubBoardRenderer {
         //        || cachedY != y
         || cachedBackgroundImageHasCoordinatesEnabled != showCoordinates()
         || !cachedBoardStyle.equals(Lizzie.config.boardStyle)
+        || cachedTheme != Lizzie.config.theme
         || Lizzie.board.isForceRefresh2()) {
 
       cachedBoardWidth = boardWidth;
       cachedBoardHeight = boardHeight;
       cachedBoardStyle = Lizzie.config.boardStyle;
+      followTheme();
       Lizzie.board.setForceRefresh2(false);
 
       cachedBackgroundImage = new BufferedImage(width, height, TYPE_INT_ARGB);
@@ -1088,9 +1105,7 @@ public class SubBoardRenderer {
   /** Render the shadows and stones in correct background-foreground order */
   private void renderImages(Graphics2D g) {
     g.setRenderingHint(KEY_ANTIALIASING, VALUE_ANTIALIAS_OFF);
-    if ((Lizzie.config.showKataGoEstimate
-            && Lizzie.config.showKataGoEstimateOnSubbord
-            && Lizzie.config.showKataGoEstimateOnSubbord)
+    if ((Lizzie.config.showKataGoEstimate && Lizzie.config.showKataGoEstimateOnSubbord)
         || Lizzie.frame.isShowingHeatmap)
       if (shouldShowCountBlockBelow()) g.drawImage(kataEstimateImage, x, y, null);
     g.drawImage(cachedStonesImage, x, y, null);
@@ -1328,15 +1343,16 @@ public class SubBoardRenderer {
   }
 
   private void drawWoodenBoard(Graphics2D g) {
-    if (Lizzie.config.usePureBoard) {
+    featurecat.lizzie.Config config = Lizzie.config;
+    if (config.usePureBoard) {
       // simple version
       g.setRenderingHint(KEY_ANTIALIASING, VALUE_ANTIALIAS_OFF);
-      g.setColor(Lizzie.config.pureBoardColor);
+      g.setColor(config.pureBoardColor);
       g.fillRect(0, 0, boardWidth, boardHeight);
     } else {
       // fancy version
       if (cachedBoardImage == emptyImage) {
-        cachedBoardImage = Lizzie.config.theme.defaultBoard();
+        cachedBoardImage = config.theme.defaultBoard();
       }
       drawTextureImage(g, cachedBoardImage, 0, 0, boardWidth, boardHeight);
 
@@ -1426,7 +1442,12 @@ public class SubBoardRenderer {
     g.setRenderingHint(KEY_INTERPOLATION, VALUE_INTERPOLATION_BILINEAR);
     g.setRenderingHint(KEY_ANTIALIASING, VALUE_ANTIALIAS_ON);
 
-    if (color.isBlack() || color.isWhite()) {
+    if ((color.isBlack() || color.isWhite()) && !Lizzie.config.usePureStone) {
+      followTheme();
+      int size = stoneRadius * 2 + 1;
+      BufferedImage stone = themedStones.stoneAt(color.isBlack(), size, x, y);
+      g.drawImage(stone, centerX - stoneRadius, centerY - stoneRadius, size, size, null);
+    } else if (color.isBlack() || color.isWhite()) {
       boolean isBlack = color.isBlack();
       g.setColor(isBlack ? Color.BLACK : Color.WHITE);
       fillCircle(g, centerX, centerY, stoneRadius);
