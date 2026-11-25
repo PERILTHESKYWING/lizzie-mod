@@ -31,8 +31,12 @@ import org.slf4j.LoggerFactory;
  * this fork's {@code mod-latest} release, after checking its size and SHA-256. The previous jar is
  * kept as {@code .bak} and can be restored from the same menu item.
  *
- * <p>Windows locks a running jar, so a small helper script swaps the files after LizzieYzy has
- * exited (and restarts it when asked); elsewhere the files are swapped at once.
+ * <p>Windows locks a running jar. In the packaged app the launcher reads {@code app\<App>.cfg} to
+ * know which jar to start, so the new build is saved under its own name ({@code
+ * lizzie-mod-<commit>.jar}) and the config is pointed at it: nothing locked is replaced, and the
+ * next start uses the new jar. Without such a config a helper script swaps the files after exit.
+ * Elsewhere the files are swapped at once. After the restart {@link ModUpdateNotice} says whether
+ * the update took effect.
  */
 final class ModUpdater {
   private static final Logger LOGGER = LoggerFactory.getLogger(ModUpdater.class);
@@ -61,7 +65,12 @@ final class ModUpdater {
   private void offer(ModUpdateManifest.Build build, ModUpdateManifest.Offer offer) {
     Path jar = runningJar();
     if (!ModUpdateManifest.isNewer(build, offer)) {
-      boolean canRestore = jar != null && Files.isRegularFile(sibling(jar, ".bak"));
+      Path cfg = jar == null ? null : launcherConfig(jar);
+      boolean canRestore =
+          jar != null
+              && (cfg != null
+                  ? previousJar(cfg) != null
+                  : Files.isRegularFile(sibling(jar, ".bak")));
       Object[] options =
           canRestore ? new Object[] {text("ok"), text("restore")} : new Object[] {text("ok")};
       int choice =
@@ -94,11 +103,164 @@ final class ModUpdater {
             JOptionPane.OK_CANCEL_OPTION,
             JOptionPane.QUESTION_MESSAGE);
     if (answer != JOptionPane.OK_OPTION) return;
+    Path cfg = isWindows() ? launcherConfig(jar) : null;
+    if (cfg != null) {
+      Path target = jar.resolveSibling(versionedJarName(offer.commit()));
+      background(
+          () -> {
+            download(ModUpdateManifest.jarUrl(build), offer, target);
+            SwingUtilities.invokeLater(() -> repointAndRestart(cfg, jar, target, offer.commit()));
+          });
+      return;
+    }
     background(
         () -> {
           download(ModUpdateManifest.jarUrl(build), offer, sibling(jar, ".new"));
           SwingUtilities.invokeLater(() -> applyWhenReady(jar));
         });
+  }
+
+  /** Points the launcher at {@code target}, remembers what to expect, and offers a restart. */
+  private void repointAndRestart(Path cfg, Path jar, Path target, String commit) {
+    try {
+      repointLauncher(cfg, jar.getFileName().toString(), target.getFileName().toString());
+      ModUpdateNotice.expect(commit);
+      removeOldVersionedJars(jar, target);
+    } catch (IOException e) {
+      message(format("failed", e.getMessage()), JOptionPane.WARNING_MESSAGE);
+      return;
+    }
+    offerRestart(text("readyNextStart"), launcher(jar));
+  }
+
+  private void offerRestart(String question, Path launcherExe) {
+    Object[] options = {text("restartNow"), text("later")};
+    int choice =
+        JOptionPane.showOptionDialog(
+            owner,
+            question,
+            text("title"),
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.INFORMATION_MESSAGE,
+            null,
+            options,
+            options[0]);
+    if (choice != 0) return;
+    if (launcherExe != null) {
+      Runtime.getRuntime()
+          .addShutdownHook(
+              new Thread(
+                  () -> {
+                    try {
+                      // a short wait so the new instance starts after this one has let go
+                      new ProcessBuilder(
+                              "cmd",
+                              "/c",
+                              "ping",
+                              "-n",
+                              "3",
+                              "127.0.0.1",
+                              ">nul",
+                              "&",
+                              "start",
+                              "\"\"",
+                              launcherExe.toString())
+                          .start();
+                    } catch (IOException e) {
+                      LOGGER.warn("Could not restart LizzieYzy", e);
+                    }
+                  },
+                  "mod-update-restart"));
+    }
+    Lizzie.shutdown();
+  }
+
+  static String versionedJarName(String commit) {
+    return "lizzie-mod-" + commit.substring(0, Math.min(12, commit.length())) + ".jar";
+  }
+
+  static boolean isUpdateJarName(String name) {
+    return name.equals(ModUpdateManifest.JAR_NAME)
+        || name.matches("lizzie-mod-[0-9a-f]{7,40}\\.jar");
+  }
+
+  /** The launcher config ({@code <App>.cfg}) next to {@code jar} that names it, or null. */
+  static Path launcherConfig(Path jar) {
+    Path dir = jar.getParent();
+    if (dir == null) return null;
+    String name = jar.getFileName().toString();
+    try (Stream<Path> files = Files.list(dir)) {
+      return files
+          .filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".cfg"))
+          .filter(p -> readLatin1(p).contains(name))
+          .findFirst()
+          .orElse(null);
+    } catch (IOException e) {
+      return null;
+    }
+  }
+
+  /**
+   * Replaces the jar file name in the launcher config (its {@code app.classpath}/{@code
+   * app.mainjar} lines) and keeps the previous config as {@code .bak}. Bytes are kept as they are.
+   */
+  static void repointLauncher(Path cfg, String oldJar, String newJar) throws IOException {
+    String text = readLatin1(cfg);
+    String updated = text.replace(oldJar, newJar);
+    if (updated.equals(text)) throw new IOException("the launcher config does not name " + oldJar);
+    Files.copy(cfg, sibling(cfg, ".bak"), StandardCopyOption.REPLACE_EXISTING);
+    Path tmp = sibling(cfg, ".tmp");
+    Files.write(tmp, updated.getBytes(StandardCharsets.ISO_8859_1));
+    Files.move(tmp, cfg, StandardCopyOption.REPLACE_EXISTING);
+  }
+
+  /** The jar the backup config names, when it still exists (the version to restore), or null. */
+  static Path previousJar(Path cfg) {
+    Path bak = sibling(cfg, ".bak");
+    if (!Files.isRegularFile(bak)) return null;
+    String text = readLatin1(bak);
+    try (Stream<Path> files = Files.list(cfg.getParent())) {
+      return files
+          .filter(p -> isUpdateJarName(p.getFileName().toString()))
+          .filter(p -> text.contains(p.getFileName().toString()))
+          .filter(p -> !readLatin1(cfg).contains(p.getFileName().toString()))
+          .findFirst()
+          .orElse(null);
+    } catch (IOException e) {
+      return null;
+    }
+  }
+
+  /** Keeps the running jar (the backup) and the new one; removes older downloaded builds. */
+  static void removeOldVersionedJars(Path running, Path keep) {
+    try (Stream<Path> files = Files.list(running.getParent())) {
+      files
+          .filter(p -> p.getFileName().toString().startsWith("lizzie-mod-"))
+          .filter(p -> isUpdateJarName(p.getFileName().toString()))
+          .filter(p -> !p.equals(running) && !p.equals(keep))
+          .forEach(
+              p -> {
+                try {
+                  Files.deleteIfExists(p);
+                } catch (IOException e) {
+                  LOGGER.info("Could not remove old build {}", p, e);
+                }
+              });
+    } catch (IOException e) {
+      LOGGER.info("Could not list old builds next to {}", running, e);
+    }
+  }
+
+  private static String readLatin1(Path p) {
+    try {
+      return new String(Files.readAllBytes(p), StandardCharsets.ISO_8859_1);
+    } catch (IOException e) {
+      return "";
+    }
+  }
+
+  private static boolean isWindows() {
+    return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
   }
 
   /** Downloads to {@code .download}, verifies size and SHA-256, then renames to {@code target}. */
@@ -129,6 +291,19 @@ final class ModUpdater {
   }
 
   private void restore(Path jar) {
+    Path cfg = isWindows() ? launcherConfig(jar) : null;
+    Path previous = cfg == null ? null : previousJar(cfg);
+    if (previous != null) {
+      try {
+        repointLauncher(cfg, jar.getFileName().toString(), previous.getFileName().toString());
+        ModUpdateNotice.clear();
+      } catch (IOException e) {
+        message(format("failed", e.getMessage()), JOptionPane.WARNING_MESSAGE);
+        return;
+      }
+      offerRestart(text("readyNextStart"), launcher(jar));
+      return;
+    }
     try {
       Files.copy(sibling(jar, ".bak"), sibling(jar, ".new"), StandardCopyOption.REPLACE_EXISTING);
     } catch (IOException e) {
@@ -242,7 +417,7 @@ final class ModUpdater {
     try {
       Path p =
           Path.of(ModUpdater.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-      if (!p.getFileName().toString().equals(ModUpdateManifest.JAR_NAME)) return null;
+      if (!isUpdateJarName(p.getFileName().toString())) return null;
       return Files.isWritable(p.getParent()) ? p : null;
     } catch (Exception e) {
       return null;

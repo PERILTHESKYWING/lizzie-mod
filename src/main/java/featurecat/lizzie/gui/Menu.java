@@ -7242,10 +7242,6 @@ public class Menu extends JMenuBar {
                 selectAllow.setIcon(iconAllow);
               }
             }
-            //   Lizzie.frame.boardRenderer.removeSelectedRect();
-            //   if (Lizzie.frame.independentMainBoard != null)
-            //     Lizzie.frame.independentMainBoard.boardRenderer.removeSelectedRect();
-            //    Lizzie.frame.refresh();
             //    featurecat.lizzie.gui.RightClickMenu.avoidcoords = "";
             //   featurecat.lizzie.gui.RightClickMenu.allowcoords = "";
             //    }
@@ -9461,6 +9457,7 @@ public class Menu extends JMenuBar {
         Lizzie.frame.topPanel.add(chkShowScore);
       }
     }
+    TopHeaderPanel bar = Lizzie.frame.topPanel;
     tsumeGo.setMargin(new Insets(0, 0, 1, 0));
     setRules.setMargin(new Insets(0, 0, 1, 0));
     setLzSaiParam.setMargin(new Insets(0, 0, 1, 0));
@@ -9470,27 +9467,29 @@ public class Menu extends JMenuBar {
         || Lizzie.config.showParamMenu
         || Lizzie.config.showGobanMenu
         || Lizzie.config.showSaveLoadMenu)
-      Lizzie.frame.topPanel.addSeparator(
-          new Dimension(ToolbarSizing.SEPARATOR_WIDTH, Config.menuHeight + 2));
+      bar.addSeparator(new Dimension(ToolbarSizing.SEPARATOR_WIDTH, Config.menuHeight + 2));
     if (Lizzie.config.showRuleMenu) {
       setRules.setVisible(true);
-      Lizzie.frame.topPanel.add(setRules);
+      bar.add(setRules);
+      bar.add(
+          ReanalyzeGameButton.create(
+              resourceBundle, () -> Lizzie.frame.flashAnalyzeGame(true, false)));
     }
     if (Lizzie.config.showTsumeGoMenu) {
       tsumeGo.setVisible(true);
-      Lizzie.frame.topPanel.add(tsumeGo);
+      bar.add(tsumeGo);
     }
     if (Lizzie.config.showParamMenu) {
       setLzSaiParam.setVisible(true);
-      Lizzie.frame.topPanel.add(setLzSaiParam);
+      bar.add(setLzSaiParam);
     }
     if (Lizzie.config.showGobanMenu) {
       setBoardSize.setVisible(true);
-      Lizzie.frame.topPanel.add(setBoardSize);
+      bar.add(setBoardSize);
     }
     if (Lizzie.config.showSaveLoadMenu) {
       saveLoad.setVisible(true);
-      Lizzie.frame.topPanel.add(saveLoad);
+      bar.add(saveLoad);
     }
     // Lizzie.frame.reSetLoc();
   }
