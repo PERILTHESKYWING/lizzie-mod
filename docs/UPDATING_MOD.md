@@ -19,9 +19,13 @@ In LizzieYzy: **Help → Update LizzieYzy (mod)…**
 
 - It compares the published build with the one running and asks before downloading.
 - The download is checked (size and SHA-256) before anything is replaced.
-- The current program file is kept as `app\lizzie-yzy2.5.3-shaded.jar.bak`; when you are up to date,
-  the same menu item offers **Restore previous version**.
-- On Windows the file is swapped after LizzieYzy closes (**Restart now** does that for you).
+- On Windows the new build is saved next to the old one as `app\lizzie-mod-<commit>.jar`, and the
+  launcher file `app\LizzieYzy Next*.cfg` is pointed at it (the previous one is kept as `.cfg.bak`).
+  Nothing in use is replaced, so the next start always uses the new build. **Restart now** restarts
+  for you.
+- After the restart LizzieYzy tells you whether the update took effect.
+- The previous version stays on disk; when you are up to date, the same menu item offers **Restore
+  previous version**. Elsewhere (macOS, Linux) the old file is kept as `.bak`.
 
 Engines, networks, settings, the opening database and your games are not touched by an update.
 A new full installer is only needed when the packaged parts change (Java runtime, bundled KataGo).

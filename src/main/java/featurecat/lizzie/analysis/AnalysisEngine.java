@@ -88,14 +88,11 @@ public class AnalysisEngine {
   private ScheduledExecutorService executorErr;
   private List<String> commands;
   private boolean isPreLoad;
-  // private HashMap<Integer, List<MoveData>> resultMap = new HashMap<Integer, List<MoveData>>();
   private Map<Integer, BoardHistoryNode> analyzeMap =
       new ConcurrentHashMap<Integer, BoardHistoryNode>();
   private int globalID;
   private volatile int resultCount;
   private volatile int responseCount;
-  // private int analyzeNumberCount;
-  // private BoardHistoryNode startAnalyzeNode;
   public WaitForAnalysis waitFrame;
   private volatile EngineStartupDiagnostics.Attempt startupDiagnosticAttempt;
   private EngineStartupDiagnostics.Attempt presentedStartupDiagnosticAttempt;
@@ -2975,10 +2972,13 @@ public class AnalysisEngine {
     return isRealHistoryAction(data) && shouldAnalyzeNode(node, targetAnalysisVisits());
   }
 
-  private static boolean shouldAnalyzeNode(BoardHistoryNode node, int targetVisits) {
+  static boolean shouldAnalyzeNode(BoardHistoryNode node, int targetVisits) {
     BoardData data = node == null ? null : node.getData();
+    // A komi or rule change marks earlier analysis stale (isChanged); redo those moves too.
     return isRealHistoryAction(data)
-        && (Lizzie.config.analysisAlwaysOverride || data.getPlayouts() < targetVisits);
+        && (Lizzie.config.analysisAlwaysOverride
+            || data.isChanged
+            || data.getPlayouts() < targetVisits);
   }
 
   private static boolean shouldAnalyzeMissingNode(BoardHistoryNode node) {

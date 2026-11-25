@@ -1442,6 +1442,8 @@ public class Lizzie {
               frame.setVisible(true);
             }
           });
+      runReadyPresentationStep(
+          () -> featurecat.lizzie.gui.ModUpdateNotice.showPendingResult(frame));
     }
 
     private void runDeferredPdaPresentation() {
