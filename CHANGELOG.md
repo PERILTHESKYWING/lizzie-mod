@@ -4,6 +4,10 @@ All notable maintenance updates to this fork are documented here.
 
 ## Unreleased
 
+- Re-analyse button next to Rules in the top toolbar (also Ctrl+B): analyses the whole game again with the current komi and rules. Moves analysed before a komi or rule change are now redone instead of skipped, so the winrate graph is right without stepping through the game.
+
+- Help → Update LizzieYzy (mod)… on Windows now saves the new build as its own file and points the launcher at it (app\\<App>.cfg), instead of swapping a locked file after exit, which could fail silently. After the restart LizzieYzy says whether the update took effect; Restore previous version points the launcher back.
+
 - Three realistic board and stone themes, painted after reference photos of real equipment: Hon-kaya (pale golden straight-grain kaya, Nachi slate, Hyuga clamshell), Bamboo (carbonised laminated bamboo, Yunzi stones) and Shin-kaya (spruce, frosted glass stones). Choose them in Settings → Theme; they are copied into the theme folder on start and refreshed when an update brings newer versions (a theme folder you made yourself with the same name is never touched). Themes can now list several images per stone colour (`black-stone-variants`, `white-stone-variants` in theme.txt), so every clamshell has its own growth lines and each board point keeps the same stone, and can set a soft light falloff from the upper left over board and stones (`light-falloff`).
 
 - Opening Explorer: Import → Fox accounts… adds the newest games (up to 200) of any Fox account to a collection; equivalent points on symmetric boards are named in the top-right corner (Q16 hoshi, R16 komoku); games whose first 100 moves match count once even when names or dates differ, keeping the longest record (also cleaned up in existing databases); ⋯ → Colours… sets marker, bar and selected-move colours with a colour wheel and links to KataGo's suggestion colours.

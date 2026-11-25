@@ -101,4 +101,61 @@ class ModUpdaterTest {
     assertTrue(script.contains("\r\n"));
     assertFalse(ModUpdater.windowsHelperScript(jar, null).contains("start \"\""));
   }
+
+  @Test
+  void windowsUpdatePointsTheLauncherConfigAtANewlyNamedJar() throws Exception {
+    Path app = Files.createDirectories(tmp.resolve("app"));
+    Path jar = Files.writeString(app.resolve(ModUpdateManifest.JAR_NAME), "old");
+    String cfgText =
+        "[Application]\r\napp.mainjar=$APPDIR\\lizzie-yzy2.5.3-shaded.jar\r\n"
+            + "app.classpath=$APPDIR\\lizzie-yzy2.5.3-shaded.jar\r\n[JavaOptions]\r\n"
+            + "java-options=-Djava.library.path=$APPDIR\r\n";
+    Path cfg = Files.write(app.resolve("LizzieYzy Next.cfg"), cfgText.getBytes("ISO-8859-1"));
+    Files.writeString(app.resolve("other.cfg"), "unrelated");
+
+    assertEquals(cfg, ModUpdater.launcherConfig(jar));
+    String commit = "0123456789abcdef0123456789abcdef01234567";
+    Path target = jar.resolveSibling(ModUpdater.versionedJarName(commit));
+    assertEquals("lizzie-mod-0123456789ab.jar", target.getFileName().toString());
+    assertTrue(ModUpdater.isUpdateJarName(target.getFileName().toString()));
+    assertFalse(ModUpdater.isUpdateJarName("evil.jar"));
+    Files.writeString(target, "new");
+
+    ModUpdater.repointLauncher(cfg, jar.getFileName().toString(), target.getFileName().toString());
+
+    String now = Files.readString(cfg, java.nio.charset.StandardCharsets.ISO_8859_1);
+    assertEquals(cfgText.replace(ModUpdateManifest.JAR_NAME, target.getFileName().toString()), now);
+    assertTrue(
+        Files.readString(cfg.resolveSibling(cfg.getFileName() + ".bak"))
+            .contains(ModUpdateManifest.JAR_NAME));
+    assertEquals(jar, ModUpdater.previousJar(cfg), "the old jar can be restored");
+    assertEquals(target, ModUpdater.launcherConfig(target).resolveSibling(target.getFileName()));
+    assertThrows(IOException.class, () -> ModUpdater.repointLauncher(cfg, "missing.jar", "x.jar"));
+  }
+
+  @Test
+  void olderDownloadedBuildsAreRemovedButTheRunningAndNewOnesKept() throws Exception {
+    Path app = Files.createDirectories(tmp.resolve("app2"));
+    Path running = Files.writeString(app.resolve("lizzie-mod-aaaaaaaaaaaa.jar"), "r");
+    Path keep = Files.writeString(app.resolve("lizzie-mod-bbbbbbbbbbbb.jar"), "k");
+    Path old = Files.writeString(app.resolve("lizzie-mod-cccccccccccc.jar"), "o");
+    Path stranger = Files.writeString(app.resolve("lizzie-mod-notes.jar"), "s");
+
+    ModUpdater.removeOldVersionedJars(running, keep);
+
+    assertTrue(Files.exists(running) && Files.exists(keep) && Files.exists(stranger));
+    assertFalse(Files.exists(old));
+  }
+
+  @Test
+  void theNextStartReportsWhetherTheUpdateTookEffect() throws Exception {
+    Path dir = Files.createDirectories(tmp.resolve("work"));
+    assertEquals(null, ModUpdateNotice.consume(dir, "abc"));
+    Files.writeString(dir.resolve(ModUpdateNotice.FILE), "abcdef1234\n");
+    ModUpdateNotice.Result ok = ModUpdateNotice.consume(dir, "ABCDEF1234");
+    assertTrue(ok.applied());
+    assertFalse(Files.exists(dir.resolve(ModUpdateNotice.FILE)), "reported once");
+    Files.writeString(dir.resolve(ModUpdateNotice.FILE), "abcdef1234");
+    assertFalse(ModUpdateNotice.consume(dir, "1111111").applied());
+  }
 }
