@@ -28,6 +28,9 @@ concurrency:
 
 jobs:
   publish:
+    # Release requests belong to the original project; forks such as this mod publish through
+    # publish-mod-jar.yml instead, so do not cut upstream pre-releases here.
+    if: github.repository == 'wimi321/lizzieyzy-next'
     runs-on: ubuntu-latest
     timeout-minutes: 360
     outputs:
