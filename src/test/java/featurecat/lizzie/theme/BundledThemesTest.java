@@ -67,6 +67,7 @@ class BundledThemesTest {
           assertEquals(0, stone.getRGB(0, 0) >>> 24, name + " corner is transparent");
         }
         assertTrue(theme.lightFalloff() > 0 && theme.lightFalloff() < 0.2, name);
+        assertEquals(1, theme.stoneIndicatorType(), name + " marks the last move with a circle");
       }
       assertEquals(8, themeVariants(root, "Hon-kaya"), "every clamshell differs");
     } finally {

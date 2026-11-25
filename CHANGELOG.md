@@ -4,6 +4,8 @@ All notable maintenance updates to this fork are documented here.
 
 ## Unreleased
 
+- Tidier top toolbar: by default it shows only Fox Kifu, Strength, Komi, Rules, Re-analyse, New game, Goban, Hawk eye and the new Update mod, Update AI model and Theme buttons; everything else stays in the menus, and ⚙ picks your own set (saved as a list of buttons to show). PDA and Breadth leave the toolbar once and can be shown again through Search features. The small variation board now follows a theme switch at once and uses the theme's stones, and the realistic themes mark the last move with a circle like the default board (their installed copies refresh automatically).
+
 - Re-analyse button next to Rules in the top toolbar (also Ctrl+B): analyses the whole game again with the current komi and rules. Moves analysed before a komi or rule change are now redone instead of skipped, so the winrate graph is right without stepping through the game.
 
 - Help → Update LizzieYzy (mod)… on Windows now saves the new build as its own file and points the launcher at it (app\\<App>.cfg), instead of swapping a locked file after exit, which could fail silently. After the restart LizzieYzy says whether the update took effect; Restore previous version points the launcher back.

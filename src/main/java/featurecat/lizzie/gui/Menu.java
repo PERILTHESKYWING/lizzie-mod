@@ -5639,6 +5639,7 @@ public class Menu extends JMenuBar {
     engineMenu2.add(shutdownCurrentEngine2);
     // }
     komiPanel = new JPanel();
+    komiPanel.putClientProperty(TopBarCustomization.LABEL, resourceBundle.getString("Menu.komi"));
     komiPanel.setLayout(null);
     lblKomiSpinner = new JFontLabel(resourceBundle.getString("Menu.komi")); // ("贴目:");
     txtKomi = new JFontTextField();
@@ -9471,10 +9472,8 @@ public class Menu extends JMenuBar {
     if (Lizzie.config.showRuleMenu) {
       setRules.setVisible(true);
       bar.add(setRules);
-      bar.add(
-          ReanalyzeGameButton.create(
-              resourceBundle, () -> Lizzie.frame.flashAnalyzeGame(true, false)));
     }
+    TopBarActions.addTo(bar, resourceBundle, Lizzie.frame);
     if (Lizzie.config.showTsumeGoMenu) {
       tsumeGo.setVisible(true);
       bar.add(tsumeGo);

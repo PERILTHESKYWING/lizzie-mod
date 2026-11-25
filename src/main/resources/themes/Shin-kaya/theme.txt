@@ -1,7 +1,7 @@
 {
   "comment-font-size": 0,
   "shadow-size": 100,
-  "stone-indicator-type": 0,
+  "stone-indicator-type": 1,
   "ui-font-name": "Lizzie Default",
   "blunder-bar-color": [
     255,

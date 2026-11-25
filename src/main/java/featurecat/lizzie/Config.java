@@ -51,29 +51,23 @@ public class Config {
   public boolean showWinrateOverview = false;
   public boolean showBlunderBar = false;
   public boolean showMoveAllInBranch = false;
-  // public boolean weightedBlunderBarHeight = false;
-  // public boolean dynamicWinrateGraphWidth = true;
   public boolean showVariationGraph = true;
   public boolean showComment = true;
   public boolean showRawBoard = false;
   public boolean showBestMovesTemporarily = false;
   public boolean showCaptured = true;
-  // public boolean handicapInsteadOfWinrate = false;
   //  public boolean showDynamicKomi = false;
   public double replayBranchIntervalSeconds = 0.5;
   public boolean showCoordinates = true;
   public String boardStyle = BOARD_STYLE_JAPANESE;
   public boolean colorByWinrateInsteadOfVisits = false;
-  // public boolean showlcbwinrate = false;
   public boolean playponder = true;
   public int showrect = 1;
   public boolean showlcbcolor = false;
   public boolean fastChange = true;
   public boolean showKataGoScoreLeadWithKomi = false;
   //  public boolean kataGoScoreMeanAlwaysBlack = false;
-  // public boolean scoreMeanWinrateGraphBoard = false;
   public boolean showKataGoEstimate = false;
-  // public boolean allowDrageDoubleClick = true;
   public boolean showKataGoEstimateOnSubbord = true;
   public boolean showKataGoEstimateOnMainbord = true;
   public boolean showSuggestionOrder = true;
@@ -1964,6 +1958,12 @@ public class Config {
     txtKataEngineWRN = uiConfig.optString("txt-kata-engine-wrn", "");
     autoLoadKataEngineWRN = uiConfig.optBoolean("autoload-kata-engine-wrn", false);
 
+    if (uiConfig.optInt("toolbar-layout", 1) < 2) { // the tidy toolbar keeps these in Settings
+      uiConfig
+          .put("toolbar-layout", 2)
+          .put("show-wrn-in-menu", false)
+          .put("show-pda-in-menu", false);
+    }
     showWRNInMenu = uiConfig.optBoolean("show-wrn-in-menu", true);
     showPDAInMenu = uiConfig.optBoolean("show-pda-in-menu", true);
     disableWRNInGame = uiConfig.optBoolean("disable-wrn-in-game", true);

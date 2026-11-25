@@ -28,12 +28,16 @@ public class TopHeaderPanel extends JPanel {
   private final TopBarCustomization customization;
 
   public TopHeaderPanel() {
-    this(defaultCustomizationFile());
+    this(defaultCustomizationFile(), defaultShown());
   }
 
   /** {@code customizationFile} keeps the toolbar choice; null keeps it in memory only. */
   TopHeaderPanel(java.nio.file.Path customizationFile) {
-    customization = new TopBarCustomization(customizationFile);
+    this(customizationFile, null);
+  }
+
+  TopHeaderPanel(java.nio.file.Path customizationFile, java.util.Set<String> defaultShown) {
+    customization = new TopBarCustomization(customizationFile, defaultShown);
     setLayout(new BorderLayout());
     setOpaque(false);
     setBorder(new EmptyBorder(2, 6, 2, 6));
@@ -59,6 +63,31 @@ public class TopHeaderPanel extends JPanel {
     customize.setToolTipText(text("TopBar.button"));
     customize.addActionListener(e -> customize());
     super.add(customize, BorderLayout.EAST);
+  }
+
+  /** Keys of the everyday buttons the toolbar shows until the user picks their own. */
+  static final java.util.List<String> DEFAULT_SHOWN_KEYS =
+      java.util.List.of(
+          "Menu.foxKifuButton",
+          "Menu.playerStrengthEstimateButton",
+          "Menu.komi",
+          "Menu.rulesBtn",
+          "Menu.reanalyzeBtn",
+          "Menu.newGameBtn",
+          "Menu.gobanBtn",
+          "Menu.btnHawkeye.toolTipText",
+          "TopBar.updateMod",
+          "TopBar.updateModel",
+          "TopBar.theme");
+
+  /** The default buttons' labels in the current language. */
+  static java.util.Set<String> defaultShown() {
+    java.util.Set<String> labels = new java.util.LinkedHashSet<>();
+    for (String key : DEFAULT_SHOWN_KEYS) {
+      javax.swing.JLabel probe = new javax.swing.JLabel(text(key));
+      labels.add(TopBarCustomization.labelOf(probe));
+    }
+    return labels;
   }
 
   private static java.nio.file.Path defaultCustomizationFile() {
