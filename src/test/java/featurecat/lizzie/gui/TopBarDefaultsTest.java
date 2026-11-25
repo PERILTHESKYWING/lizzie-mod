@@ -74,10 +74,11 @@ class TopBarDefaultsTest {
   }
 
   @Test
-  void pdaAndBreadthLeaveTheToolbarOnceButCanBeShownAgain() {
+  void pdaAndBreadthLeaveTheToolbarOnceButCanBeShownAgain() throws Exception {
     org.json.JSONObject ui = new org.json.JSONObject().put("show-pda-in-menu", true);
     featurecat.lizzie.Config config =
-        featurecat.lizzie.ConfigTestHelper.createForTests(tmp.resolve("work"));
+        featurecat.lizzie.ConfigTestHelper.createBootstrapped(
+            Files.createDirectories(tmp.resolve("work").resolve("save")).getParent());
     assertFalse(config.showPDAInMenu, "a new or older profile starts with the tidy toolbar");
     assertFalse(config.showWRNInMenu);
     assertEquals(2, config.uiConfig.optInt("toolbar-layout"));
