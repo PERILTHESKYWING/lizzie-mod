@@ -22,6 +22,8 @@ concurrency:
 
 jobs:
   prepare-source-archive:
+    # Needs the original project's draft CPU-engine source archive, which forks do not have.
+    if: github.repository == 'wimi321/lizzieyzy-next'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     # GitHub restricts Draft assets to push access. This job only reads JSON,
