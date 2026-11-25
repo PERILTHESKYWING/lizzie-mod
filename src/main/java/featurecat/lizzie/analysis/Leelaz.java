@@ -68,6 +68,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -98,8 +99,8 @@ public class Leelaz {
   private static final AtomicInteger BENCHMARK_TASK_THREAD_SEQUENCE = new AtomicInteger();
   private static final Executor COMMAND_DISPATCH_EXECUTOR =
       Executors.newCachedThreadPool(Leelaz::newCommandDispatchThread);
-  private static final ScheduledExecutorService RUNTIME_THREAD_TIMEOUT_EXECUTOR =
-      Executors.newSingleThreadScheduledExecutor(Leelaz::newCommandDispatchThread);
+  private static final ScheduledExecutorService GTP_RESPONSE_TIMEOUT_EXECUTOR =
+      GtpResponseTimeoutScheduler.create();
 
   public enum ExclusiveGtpLeaseAvailability {
     AVAILABLE,
@@ -1741,6 +1742,10 @@ public class Leelaz {
             suppressesGlobalEnginePresentation(watchdogIncarnation));
       }
     }
+    if (process == null) {
+      AnalysisResourceCoordinator.processStarted(
+          this, AnalysisResourceCoordinator.Purpose.MAIN_BOARD, engineCommand, null);
+    }
     // Send a version request to check that we have a supported version
     // Response handled in parseLine
     prepareEngineBootstrapState(engineGameStartupTransaction);
@@ -2338,6 +2343,7 @@ public class Leelaz {
                     Math.max(1L, engine.engineTuningSynchronizationTimeoutMillis()));
         tuningTimeoutApplied = true;
       }
+      deadline = engine.extendStartupTuningDeadline(deadline, now);
       if (now >= deadline) {
         return false;
       }
@@ -5107,6 +5113,8 @@ public class Leelaz {
     private final SSHController javaSSH;
     private final long incarnation;
     private EngineStartupDiagnostics.Attempt startupDiagnostic;
+    private final featurecat.lizzie.analysis.gtp.StartupTuningProgress startupTuning =
+        new featurecat.lizzie.analysis.gtp.StartupTuningProgress();
     private final Path processWorkingDirectory;
     private final SnapshotFileAccessKind snapshotFileAccessKind;
     private volatile Object analysisOutputRecoveryToken;
@@ -9276,13 +9284,6 @@ public class Leelaz {
   }
 
   public void nameCmdfornoponder() {
-    YikeSyncDebugLog.log(
-        "Leelaz nameCmdfornoponder isKatago="
-            + isKatago
-            + " isPondering="
-            + isPondering
-            + " caller="
-            + buildPonderCallerTrace());
     if (supportsGtpCommand("stop", isKatago)) sendCommand("stop");
     else sendCommand("name");
   }
@@ -9341,18 +9342,11 @@ public class Leelaz {
   }
 
   private void parseLineForError(String line, ReaderStreamBinding binding) {
-    // TODO Auto-generated method stub
+    observeStartupTuning(line, binding);
     EngineManager.EngineGamePrimaryContext presentationGameContext =
         EngineManager.captureEngineGamePrimaryContext(this, binding);
     if (suppressesGlobalEnginePresentation(binding) && presentationGameContext == null) {
-      // Preserve the one internal readiness signal needed to extend the bundled startup deadline,
-      // but quarantine all ordinary stderr analysis, board, console, dialog, and autoplay routes.
-      if (!isLoaded
-          && (line.startsWith("Started OpenCL SGEMM")
-              || line.startsWith("Tuning xGemmDirect")
-              || line.contains("long time"))) {
-        isTuning = true;
-      }
+      // Progress was recorded above; ordinary presentation remains quarantined.
       return;
     }
     if (!this.isLoaded) {
@@ -9684,13 +9678,6 @@ public class Leelaz {
                   analysisOutputRouteAtParse, () -> this.pda = acceptedPda);
             }
           }
-        }
-      }
-      if (!isLoaded) {
-        if (line.startsWith("Started OpenCL SGEMM")
-            || line.startsWith("Tuning xGemmDirect")
-            || line.contains("long time")) {
-          isTuning = true;
         }
       }
       parseHeatMap(line);
@@ -10168,6 +10155,7 @@ public class Leelaz {
           return;
         }
         lineInProgress = true;
+        observeStartupTuning(line, binding);
         rememberRecentLine(recentStdoutLines, line);
         if (dispatchMoveFocusLine(binding, line)) {
           lineInProgress = false;
@@ -10655,30 +10643,6 @@ public class Leelaz {
   public void sendCommand(String command) {
     if (!hasGtpCapability()) {
       return;
-    }
-    if (this == Lizzie.leelaz) {
-      AnalysisResourceCoordinator.commandSent(
-          this, AnalysisResourceCoordinator.Purpose.MAIN_BOARD, command);
-    }
-    if (command != null
-        && (command.startsWith("clear_board") || command.startsWith("kata-analyze"))) {
-      StringBuilder sb = new StringBuilder();
-      StackTraceElement[] st = Thread.currentThread().getStackTrace();
-      int taken = 0;
-      for (StackTraceElement e : st) {
-        if (!e.getClassName().startsWith("featurecat.lizzie")) continue;
-        if (e.getClassName().equals(Leelaz.class.getName())
-            && (e.getMethodName().equals("sendCommand")
-                || e.getMethodName().equals("getStackTrace"))) continue;
-        if (sb.length() > 0) sb.append(" <- ");
-        sb.append(e.getClassName().substring("featurecat.lizzie.".length()))
-            .append("#")
-            .append(e.getMethodName())
-            .append(":")
-            .append(e.getLineNumber());
-        if (++taken >= 6) break;
-      }
-      YikeSyncDebugLog.log("Leelaz sendCommand TRACE command=" + command + " caller=" + sb);
     }
     if (TrialDiag.ENABLED) {
       System.out.println("[katago-cmd] " + command);
@@ -12070,26 +12034,25 @@ public class Leelaz {
     if (command.engineGameTransaction() == null
         && positionMutation
         && !command.isTrackedLoadSgf()) {
-      command.positionResponseTimeout = new Timer("lizzie-position-response-timeout", true);
-      command.positionResponseTimeout.schedule(
-          new TimerTask() {
-            @Override
-            public void run() {
-              try {
-                retireTimedOutNormalCommand(command.onResponse);
-              } finally {
-                command.finishPositionResponse();
-              }
-            }
-          },
-          Math.max(
-              1L,
-              command.restartBootstrapReceipt != null
-                      && Boolean.TRUE.equals(ordinaryEngineGameBootstrapCommands.get())
-                  ? Math.max(
-                      engineStartupSynchronizationTimeoutMillis(),
-                      engineTuningSynchronizationTimeoutMillis())
-                  : readBoardGmaRestoreResponseTimeoutMillis()));
+      command.positionResponseTimeout =
+          GtpResponseTimeoutScheduler.schedule(
+              GTP_RESPONSE_TIMEOUT_EXECUTOR,
+              COMMAND_DISPATCH_EXECUTOR,
+              () -> {
+                try {
+                  retireTimedOutNormalCommand(command.onResponse);
+                } finally {
+                  command.finishPositionResponse();
+                }
+              },
+              Math.max(
+                  1L,
+                  command.restartBootstrapReceipt != null
+                          && Boolean.TRUE.equals(ordinaryEngineGameBootstrapCommands.get())
+                      ? Math.max(
+                          engineStartupSynchronizationTimeoutMillis(),
+                          engineTuningSynchronizationTimeoutMillis())
+                      : readBoardGmaRestoreResponseTimeoutMillis()));
     }
     if (command.engineGameTransaction() == null
         && isAnalysisOutputOwnershipCommand(command.command)) {
@@ -13509,6 +13472,10 @@ public class Leelaz {
       if (physicalWriteCompleted) {
         try {
           noteCommandSent(pendingHandler, commandLine);
+          if (this == Lizzie.leelaz) {
+            AnalysisResourceCoordinator.commandSent(
+                this, AnalysisResourceCoordinator.Purpose.MAIN_BOARD, command);
+          }
         } catch (RuntimeException observationFailure) {
           // Diagnostics are downstream of a completed protocol write and cannot redefine delivery.
           rememberRecentLine(
@@ -15148,7 +15115,7 @@ public class Leelaz {
             return;
           }
           var timeout =
-              RUNTIME_THREAD_TIMEOUT_EXECUTOR.schedule(
+              GTP_RESPONSE_TIMEOUT_EXECUTOR.schedule(
                   () -> {
                     if (result.completeExceptionally(
                         new IllegalStateException("Fox parameter query timeout")))
@@ -19257,13 +19224,13 @@ public class Leelaz {
     private boolean commandCountRetired;
     private volatile AnalysisStateLineage analysisStateLineage;
     private volatile ReaderStreamBinding analysisStateResponseBinding;
-    private volatile Timer positionResponseTimeout;
+    private volatile ScheduledFuture<?> positionResponseTimeout;
     private boolean analysisStateResponseRegistered;
     private boolean analysisStateResponseSettled;
 
     private void finishPositionResponse() {
-      Timer timer = positionResponseTimeout;
-      if (timer != null) timer.cancel();
+      ScheduledFuture<?> timeout = positionResponseTimeout;
+      if (timeout != null) timeout.cancel(false);
     }
 
     private QueuedCommand(
@@ -21147,7 +21114,7 @@ public class Leelaz {
               return;
             }
             var timeout =
-                RUNTIME_THREAD_TIMEOUT_EXECUTOR.schedule(
+                GTP_RESPONSE_TIMEOUT_EXECUTOR.schedule(
                     () -> {
                       boolean timedOut;
                       synchronized (result) {
@@ -23000,8 +22967,6 @@ public class Leelaz {
       return;
     }
     if (this == Lizzie.leelaz && Lizzie.frame != null) {
-      AnalysisResourceCoordinator.processStarted(
-          this, AnalysisResourceCoordinator.Purpose.MAIN_BOARD, engineCommand, process);
       Lizzie.frame.onMainEnginePonder();
     }
     if (Lizzie.frame.isKeepingForce || LizzieFrame.isKeepForcing) {
@@ -23098,13 +23063,6 @@ public class Leelaz {
       }
       return;
     }
-    YikeSyncDebugLog.log(
-        "Leelaz togglePonder before isPondering="
-            + isPondering
-            + " underPonder="
-            + underPonder
-            + " caller="
-            + buildPonderCallerTrace());
     if (underPonder) {
       ponder();
       return;
@@ -23211,39 +23169,6 @@ public class Leelaz {
         trySendCommandFromQueue();
       }
     }
-  }
-
-  private String buildPonderCallerTrace() {
-    StackTraceElement[] stack = Thread.currentThread().getStackTrace();
-    StringBuilder builder = new StringBuilder();
-    int collected = 0;
-    for (StackTraceElement element : stack) {
-      String className = element.getClassName();
-      String methodName = element.getMethodName();
-      if (!className.startsWith("featurecat.lizzie")) {
-        continue;
-      }
-      if (className.equals(Leelaz.class.getName())
-          && (methodName.equals("togglePonder")
-              || methodName.equals("nameCmdfornoponder")
-              || methodName.equals("buildPonderCallerTrace"))) {
-        continue;
-      }
-      if (builder.length() > 0) {
-        builder.append(" <- ");
-      }
-      builder
-          .append(className)
-          .append("#")
-          .append(methodName)
-          .append(":")
-          .append(element.getLineNumber());
-      collected++;
-      if (collected >= 6) {
-        break;
-      }
-    }
-    return builder.length() == 0 ? "unknown" : builder.toString();
   }
 
   public void clearPonderLimit() {
@@ -23579,6 +23504,20 @@ public class Leelaz {
 
   long engineTuningSynchronizationTimeoutMillis() {
     return FIRST_OPENCL_TUNING_START_TIMEOUT_MS;
+  }
+
+  private void observeStartupTuning(String line, ReaderStreamBinding binding) {
+    if (!isLoaded
+        && isCurrentReaderStreamBinding(binding)
+        && binding.startupTuning.observe(line, System.nanoTime())) isTuning = true;
+  }
+
+  long extendStartupTuningDeadline(long deadline, long now) {
+    ReaderStreamBinding binding = readerStreamBinding;
+    return binding == null
+        ? deadline
+        : binding.startupTuning.extendDeadline(
+            deadline, now, engineTuningSynchronizationTimeoutMillis());
   }
 
   void recordStartupFailure(Object expectedIncarnation, String stage, String detail) {
@@ -23939,8 +23878,8 @@ public class Leelaz {
     Thread watchdog =
         new Thread(
             () -> {
-              long deadline = System.currentTimeMillis() + timeoutMillis;
-              while (System.currentTimeMillis() < deadline) {
+              long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
+              while (System.nanoTime() < deadline) {
                 if (token != bundledStartupToken
                     || readerStreamBinding != expectedBinding
                     || isLoaded
@@ -23951,13 +23890,9 @@ public class Leelaz {
                 if (expectedProcess != null && !expectedProcess.isAlive()) {
                   break;
                 }
-                // OpenCL autotuning can take several minutes; keep waiting while it runs.
-                if (isTuning) {
-                  deadline =
-                      Math.max(
-                          deadline,
-                          System.currentTimeMillis() + FIRST_OPENCL_TUNING_START_TIMEOUT_MS);
-                }
+                deadline =
+                    expectedBinding.startupTuning.extendDeadline(
+                        deadline, System.nanoTime(), engineTuningSynchronizationTimeoutMillis());
                 try {
                   Thread.sleep(250L);
                 } catch (InterruptedException e) {
