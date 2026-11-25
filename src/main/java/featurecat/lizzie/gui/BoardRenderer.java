@@ -119,8 +119,7 @@ public class BoardRenderer {
   private BufferedImage cachedStonesShadowImagedraged = emptyImage;
   private Zobrist cachedZhash = new Zobrist(); // defaults to an empty board
 
-  private BufferedImage cachedBlackStoneImage = emptyImage;
-  private BufferedImage cachedWhiteStoneImage = emptyImage;
+  private ThemedStones themedStones;
 
   private BufferedImage branchStonesImage = emptyImage;
   private BufferedImage branchStonesShadowImage;
@@ -881,8 +880,7 @@ public class BoardRenderer {
   }
 
   public void reCreateStoneImageAnyway() {
-    cachedBlackStoneImage = emptyImage;
-    cachedWhiteStoneImage = emptyImage;
+    themedStones = null;
     cachedIsBigMargin = !cachedIsBigMargin;
   }
 
@@ -3567,6 +3565,7 @@ public class BoardRenderer {
         drawCoverTextureImage(g, cachedBoardImage, 0, 0, boardWidth, boardHeight, true);
       } else {
         drawTextureImage(g, cachedBoardImage, 0, 0, boardWidth, boardHeight, true);
+        ThemedStones.paintBoardFalloff(g, boardWidth, boardHeight, themedStones().falloff());
       }
 
       // A light readability overlay helps user-supplied photos behave like a usable board texture.
@@ -3802,13 +3801,11 @@ public class BoardRenderer {
       boolean isBlack = color.isBlack();
       drawShadow(gShadow, centerX, centerY);
       int size = stoneRadius * 2 + 1;
-      g.drawImage(
-          getScaleStone(isBlack, size),
-          centerX - stoneRadius,
-          centerY - stoneRadius,
-          size,
-          size,
-          null);
+      int px = (centerX - scaledMarginWidth) / Math.max(1, squareWidth);
+      int py = (centerY - scaledMarginHeight) / Math.max(1, squareHeight);
+      BufferedImage img = themedStones().stoneAt(isBlack, size, px, py);
+      g.drawImage(img, centerX - stoneRadius, centerY - stoneRadius, size, size, null);
+      themedStones().paintStoneFalloff(g, centerX, centerY, stoneRadius, boardWidth, boardHeight);
       if (Lizzie.config.showStoneHighlight) {
         GlassEffectRenderer.drawStoneHighlight(g, centerX, centerY, stoneRadius, isBlack);
       }
@@ -3849,23 +3846,13 @@ public class BoardRenderer {
     }
   }
 
-  /** Get scaled stone, if cached then return cached */
+  private ThemedStones themedStones() {
+    if (themedStones == null) themedStones = ThemedStones.of(Lizzie.config.theme);
+    return themedStones;
+  }
+
   private BufferedImage getScaleStone(boolean isBlack, int size) {
-    BufferedImage stoneImage = isBlack ? cachedBlackStoneImage : cachedWhiteStoneImage;
-    if (stoneImage.getWidth() != size || stoneImage.getHeight() != size) {
-      stoneImage = new BufferedImage(size, size, TYPE_INT_ARGB);
-      Image img = isBlack ? Lizzie.config.theme.blackStone() : Lizzie.config.theme.whiteStone();
-      Graphics2D g2 = stoneImage.createGraphics();
-      g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-      g2.drawImage(img.getScaledInstance(size, size, java.awt.Image.SCALE_SMOOTH), 0, 0, null);
-      g2.dispose();
-      if (isBlack) {
-        cachedBlackStoneImage = stoneImage;
-      } else {
-        cachedWhiteStoneImage = stoneImage;
-      }
-    }
-    return stoneImage;
+    return themedStones().stone(isBlack, size, 0);
   }
 
   public BufferedImage getWallpaper() {

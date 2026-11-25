@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "themes": {
+    "Hon-kaya": [
+      "black.png",
+      "black_1.png",
+      "black_2.png",
+      "black_3.png",
+      "board.jpg",
+      "theme.txt",
+      "white.png",
+      "white_1.png",
+      "white_2.png",
+      "white_3.png",
+      "white_4.png",
+      "white_5.png",
+      "white_6.png",
+      "white_7.png"
+    ],
+    "Bamboo": [
+      "black.png",
+      "board.jpg",
+      "theme.txt",
+      "white.png",
+      "white_1.png",
+      "white_2.png"
+    ],
+    "Shin-kaya": [
+      "black.png",
+      "board.jpg",
+      "theme.txt",
+      "white.png",
+      "white_1.png",
+      "white_2.png"
+    ]
+  }
+}
