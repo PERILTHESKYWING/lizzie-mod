@@ -184,6 +184,28 @@ final class TopBarCustomization {
     if (hiddenByUs.remove(c) != null) c.setVisible(true);
   }
 
+  /**
+   * Makes the toolbar item holding {@code target} visible and remembers it as shown, for features
+   * that bring a hidden toolbar control forward (Search features).
+   */
+  void reveal(Container content, Component target) {
+    for (Component item : items(content)) {
+      if (isSeparator(item)) continue;
+      if (item == target || (item instanceof Container box && box.isAncestorOf(target))) {
+        String label = labelOf(item);
+        if (!label.isEmpty() && isHidden(label)) {
+          if (shown != null) shown.add(label);
+          else hidden.remove(label);
+          save();
+        }
+        hiddenByUs.remove(item);
+        item.setVisible(true);
+        apply(content);
+        return;
+      }
+    }
+  }
+
   /** Labels of the items that can be chosen, in toolbar order. */
   List<String> choosableLabels(Container content) {
     Set<String> labels = new LinkedHashSet<>();

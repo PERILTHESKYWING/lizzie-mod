@@ -76,6 +76,7 @@ public class TopHeaderPanel extends JPanel {
           "Menu.newGameBtn",
           "Menu.gobanBtn",
           "Menu.btnHawkeye.toolTipText",
+          "FunctionSearch.title",
           "TopBar.updateMod",
           "TopBar.updateModel",
           "TopBar.theme");
@@ -102,6 +103,13 @@ public class TopHeaderPanel extends JPanel {
     if (customization != null && contentPanel != null) customization.apply(contentPanel);
   }
 
+  /** Shows the toolbar item holding {@code target}, even if the user's choice had hidden it. */
+  public void reveal(java.awt.Component target) {
+    if (customization == null || contentPanel == null || target == null) return;
+    customization.reveal(contentPanel, target);
+    contentPanel.revalidate();
+  }
+
   /** Opens the checklist of toolbar items. */
   void customize() {
     java.util.Map<String, String> t = new java.util.HashMap<>();
@@ -126,9 +134,12 @@ public class TopHeaderPanel extends JPanel {
     return contentPanel;
   }
 
+  /** Strings in the language LizzieYzy is set to (not the computer's), like the toolbar items. */
   private static String text(String key) {
     try {
-      return java.util.ResourceBundle.getBundle("l10n.DisplayStrings").getString(key);
+      java.util.ResourceBundle bundle = featurecat.lizzie.Lizzie.resourceBundle;
+      if (bundle == null) bundle = java.util.ResourceBundle.getBundle("l10n.DisplayStrings");
+      return bundle.getString(key);
     } catch (java.util.MissingResourceException e) {
       return key;
     }

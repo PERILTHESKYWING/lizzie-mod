@@ -6061,11 +6061,9 @@ public class Menu extends JMenuBar {
     komiPanel.add(txtWRN);
     komiPanel.add(btnKomiUp);
     komiPanel.add(btnKomiDown);
-    //  komiPanel.add(more);
     komiPanel.add(lblPDASpinner);
     komiPanel.add(txtPDA);
     komiPanel.add(more2);
-    //    komiPanel.add(setRules);
     //    komiPanel.add(setLzSaiParam);
     //    komiPanel.add(setBoardSize);
     //    komiPanel.add(saveLoad);
@@ -6578,9 +6576,11 @@ public class Menu extends JMenuBar {
     Lizzie.config.showDoubleMenu = true;
     doubleMenu(false);
     applyDoubleMenuGameStatus();
-    Lizzie.frame.reSetLocNow();
-    Lizzie.frame.validate();
+    LizzieFrame frame = Lizzie.frame;
     JComponent target = topFunctionTarget(id);
+    if (target != null) frame.topPanel.reveal(target); // even if the toolbar choice hid it
+    frame.reSetLocNow();
+    frame.validate();
     if (target == null || !target.isShowing()) return false;
     target.scrollRectToVisible(new java.awt.Rectangle(target.getSize()));
     target.setFocusable(true);
