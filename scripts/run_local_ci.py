@@ -189,6 +189,8 @@ PY_COMPILE_FILES = (
     "scripts/test_build_katago_source.py",
     "scripts/katago_asset_catalog.py",
     "scripts/test_katago_asset_catalog.py",
+    "scripts/sync_upstream.py",
+    "scripts/test_sync_upstream.py",
     "scripts/stage_katago_source_release.py",
     "scripts/audit_katago_linux_compatibility.py",
     "scripts/test_audit_katago_linux_compatibility.py",
@@ -285,6 +287,7 @@ DIRECT_PYTHON_TESTS = (
 )
 
 UNITTEST_MODULES = (
+    "scripts.test_sync_upstream",
     "scripts.test_prefer_ubuntu_apt_mirror",
     "scripts.test_publish_release_request",
     "scripts.test_release_asset_provenance",

@@ -32,3 +32,20 @@ A new full installer is only needed when the packaged parts change (Java runtime
 
 The updater trusts this repository's GitHub releases over HTTPS; the checksum protects against
 broken downloads, not against someone who controls the repository.
+
+## Staying in sync with the original project
+
+This mod is its own repository, started from `wimi321/lizzieyzy-next`. Once a day the **Sync
+original project** workflow (`.github/workflows/sync-upstream.yml`) merges the original's new
+changes:
+
+- Conflicts that are known to be harmless (translation lines, CHANGELOG entries and line budgets
+  added next to each other) are resolved automatically; anything else stops the sync.
+- The merged code runs the same Linux and Windows Java test suites as CI. Only when they pass does
+  it reach `main`, and a new mod build is published, ready for **Help → Update LizzieYzy (mod)…**.
+- If the merge conflicts, changes workflow files (the workflow's token may not push those) or the
+  tests fail, `main` is left alone and an issue titled *Syncing the original project needs a look*
+  explains what happened.
+
+You can also start it any time from the repository's **Actions** tab (**Sync original project →
+Run workflow**).

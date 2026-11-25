@@ -1,0 +1,140 @@
+name: Sync original project
+
+# Brings the original project's changes (wimi321/lizzieyzy-next) into this mod once a day.
+# The merge is checked with the same Linux and Windows Java suites as CI before it reaches main;
+# if anything conflicts or fails, main is left alone and an issue explains what needs a look.
+
+on:
+  schedule:
+    - cron: '41 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    if: github.repository != 'wimi321/lizzieyzy-next'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      status: ${{ steps.merge.outputs.status }}
+      files: ${{ steps.merge.outputs.files }}
+      behind: ${{ steps.merge.outputs.behind }}
+      base: ${{ steps.base.outputs.sha }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Remember the main commit the merge starts from
+        id: base
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Merge the original project
+        id: merge
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python3 scripts/sync_upstream.py merge
+      - name: Push the candidate for testing
+        if: steps.merge.outputs.status == 'merged'
+        run: git push --force origin HEAD:refs/heads/sync/upstream-candidate
+
+  linux:
+    needs: merge
+    if: needs.merge.outputs.status == 'merged'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: sync/upstream-candidate
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Linux Java verification (same as CI)
+        run: python3 scripts/run_local_ci.py --profile portable --group java --require-clean --summary-dir target/local-ci/sync-linux
+      - name: Repository and script checks (same as CI)
+        run: python3 scripts/run_local_ci.py --profile portable --group scripts --require-clean --summary-dir target/local-ci/sync-scripts
+
+  windows:
+    needs: merge
+    if: needs.merge.outputs.status == 'merged'
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Set Windows diagnostic deadline
+        shell: pwsh
+        run: |
+          $deadline = [DateTimeOffset]::UtcNow.AddMinutes(30).ToUnixTimeSeconds()
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value "LIZZIE_CI_DEADLINE_UNIX_SECONDS=$deadline" -Encoding utf8
+      - uses: actions/checkout@v5
+        with:
+          ref: sync/upstream-candidate
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Windows Java verification (same as CI)
+        shell: pwsh
+        timeout-minutes: 30
+        run: ./scripts/run_windows_ci_diagnostics.ps1
+
+  publish:
+    needs: [merge, linux, windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: sync/upstream-candidate
+          fetch-depth: 0
+      - name: Move main forward (only if nobody pushed meanwhile)
+        run: |
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "${{ needs.merge.outputs.base }}" ]; then
+            echo "main moved during the sync; the next run will try again."
+            exit 0
+          fi
+          git push origin HEAD:main
+          git push origin --delete sync/upstream-candidate || true
+          # pushes made by this workflow do not start other workflows, so publish the mod build here
+          gh workflow run publish-mod-jar.yml --ref main
+
+  report:
+    needs: [merge, linux, windows]
+    if: always() && (needs.merge.outputs.status == 'conflict' || needs.merge.result == 'failure' || needs.linux.result == 'failure' || needs.windows.result == 'failure')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Open or update the sync issue
+        run: |
+          title="Syncing the original project needs a look"
+          run="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ "${{ needs.merge.outputs.status }}" = "conflict" ]; then
+            body="The original project has ${{ needs.merge.outputs.behind }} new commit(s), but merging them conflicts in: ${{ needs.merge.outputs.files }}. Main was not changed. Run: $run"
+          else
+            body="The original project's changes merged, but the checks failed (Linux: ${{ needs.linux.result }}, Windows: ${{ needs.windows.result }}). Main was not changed; the merged code is on the sync/upstream-candidate branch. Run: $run"
+          fi
+          number=$(gh issue list --repo "${{ github.repository }}" --state open --search "$title in:title" --json number --jq '.[0].number')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --repo "${{ github.repository }}" --body "$body"
+          else
+            gh issue create --repo "${{ github.repository }}" --title "$title" --body "$body"
+          fi
