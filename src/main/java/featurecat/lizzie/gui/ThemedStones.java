@@ -61,7 +61,17 @@ final class ThemedStones {
     return stone(isBlack, size, variantFor(x, y, variants(isBlack)));
   }
 
-  private static BufferedImage scale(Image img, int size) {
+  /**
+   * The stone image at {@code size} pixels, area-averaged like {@code SCALE_SMOOTH} but computed by
+   * {@link AreaScaler}, which is many times faster when a window is resized.
+   */
+  static BufferedImage scale(BufferedImage img, int size) {
+    if (size <= img.getWidth() && size <= img.getHeight()) return AreaScaler.scale(img, size, size);
+    return scaleSmooth(img, size); // enlarging: rare, keep the old path
+  }
+
+  /** Area-averaged scaling ({@code SCALE_SMOOTH}): exact but slow on large images. */
+  static BufferedImage scaleSmooth(Image img, int size) {
     BufferedImage out = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
     Graphics2D g = out.createGraphics();
     g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);

@@ -385,6 +385,11 @@ public class BoardHistoryNode {
     return next(false);
   }
 
+  /** The main-line child, or null; like {@code next()} without allocating an Optional. */
+  public BoardHistoryNode nextOrNull() {
+    return variations.isEmpty() || variations.get(0).isEndDummay() ? null : variations.get(0);
+  }
+
   public Optional<BoardHistoryNode> next(boolean includeDummy) {
     return variations.isEmpty() || (!includeDummy && variations.get(0).isEndDummay())
         ? Optional.empty()

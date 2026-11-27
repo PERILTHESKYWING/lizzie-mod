@@ -151,9 +151,23 @@ public class Theme {
    * Empty when the theme has none or none can be read.
    */
   public List<BufferedImage> stoneVariants(boolean black) {
+    List<BufferedImage> cached = black ? blackVariantsCached : whiteVariantsCached;
+    if (cached != null) return cached;
+    List<BufferedImage> read = readStoneVariants(black);
+    if (black) blackVariantsCached = read;
+    else whiteVariantsCached = read;
+    return read;
+  }
+
+  /** Decoded once per theme: every board that follows the theme shares them. */
+  private List<BufferedImage> blackVariantsCached;
+
+  private List<BufferedImage> whiteVariantsCached;
+
+  private List<BufferedImage> readStoneVariants(boolean black) {
     List<BufferedImage> out = new ArrayList<>();
     JSONArray names = config.optJSONArray(black ? "black-stone-variants" : "white-stone-variants");
-    if (names == null) return out;
+    if (names == null) return List.of();
     for (int i = 0; i < names.length(); i++) {
       try {
         BufferedImage img = readConfiguredImage(names.optString(i), this.path);
@@ -162,7 +176,7 @@ public class Theme {
         LOGGER.warn("Unreadable stone image {} in theme {}", names.optString(i), path, e);
       }
     }
-    return out;
+    return Collections.unmodifiableList(out);
   }
 
   /** Strength of the soft light falloff from the upper left over board and stones (0 = none). */
@@ -216,6 +230,8 @@ public class Theme {
   public void clearBoardCache() {
     boardCached = null;
     defaultBoardCached = null;
+    blackVariantsCached = null;
+    whiteVariantsCached = null;
   }
 
   public BufferedImage background() {
@@ -533,7 +549,7 @@ public class Theme {
     if (image == null) {
       try (InputStream stream = getClass().getResourceAsStream("/assets/" + defaultImg)) {
         if (stream != null) {
-          image = ImageIO.read(stream);
+          image = intRaster(ImageIO.read(stream));
         }
       } catch (IOException | IllegalArgumentException e2) {
         e2.printStackTrace();
@@ -599,7 +615,32 @@ public class Theme {
     if (!file.canRead()) {
       return null;
     }
-    return ImageIO.read(file);
+    return intRaster(ImageIO.read(file));
+  }
+
+  /**
+   * The same pixels in an int-per-pixel image. JPEG and PNG files decode to byte layouts that
+   * Java2D can only paint through its slow generic path; the board wood is painted as a texture
+   * under every candidate move on every repaint, which made that path a large share of drawing.
+   */
+  static BufferedImage intRaster(BufferedImage image) {
+    if (image == null) return null;
+    int type = image.getType();
+    if (type == BufferedImage.TYPE_INT_RGB || type == BufferedImage.TYPE_INT_ARGB) return image;
+    if (type != BufferedImage.TYPE_3BYTE_BGR && type != BufferedImage.TYPE_4BYTE_ABGR) {
+      return image; // other layouts (grey, indexed, 16-bit) are left exactly as decoded
+    }
+    boolean alpha = image.getColorModel().hasAlpha();
+    BufferedImage out =
+        new BufferedImage(
+            image.getWidth(),
+            image.getHeight(),
+            alpha ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
+    Graphics2D g = out.createGraphics();
+    g.setComposite(java.awt.AlphaComposite.Src);
+    g.drawImage(image, 0, 0, null);
+    g.dispose();
+    return out;
   }
 
   private File resolveConfiguredFile(String configuredPath, String basePath) {

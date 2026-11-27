@@ -332,7 +332,8 @@ final class OpeningExplorerPanel extends JPanel {
   private void findLastMatch() {
     BoardHistoryList h = history.get();
     if (h == null || h.getCurrentHistoryNode() == null) return;
-    List<featurecat.lizzie.explorer.PositionKey> keys = new ArrayList<>();
+    // Only references are gathered here; the symmetry keys are computed on the worker thread.
+    List<OpeningExplorerService.BoardPosition> positions = new ArrayList<>();
     List<Integer> moveNumbers = new ArrayList<>();
     BoardHistoryNode node = h.getCurrentHistoryNode();
     for (int i = 0; i < 400 && node.previous().isPresent(); i++) {
@@ -340,16 +341,16 @@ final class OpeningExplorerPanel extends JPanel {
       BoardData d = node.getData();
       if (d == null || d.stones == null) break;
       Stone[] parent = node.previous().map(p -> p.getData().stones).orElse(null);
-      keys.add(
-          BoardPositionAdapter.canonical(
-                  Board.boardWidth, Board.boardHeight, d.stones, parent, d.lastMove, d.blackToPlay)
-              .key());
+      positions.add(
+          new OpeningExplorerService.BoardPosition(d, d.stones, parent, d.lastMove, d.blackToPlay));
       moveNumbers.add(d.moveNumber);
     }
-    if (keys.isEmpty()) return;
+    if (positions.isEmpty()) return;
     String identity = lastQueryIdentity;
-    service.lastMatch(
-        keys,
+    service.lastMatchOfPositions(
+        Board.boardWidth,
+        Board.boardHeight,
+        positions,
         settings.filter(),
         settings.includeVariations,
         found -> {

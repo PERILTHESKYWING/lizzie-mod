@@ -267,22 +267,76 @@ public final class OpeningExplorerService implements AutoCloseable {
       Consumer<int[]> result) {
     worker.execute(
         () -> {
-          int[] found = {-1, 0};
-          try {
-            OpeningDatabase d = db();
-            for (int i = 0; i < keys.size(); i++) {
-              int games = d.query(keys.get(i), filter, includeVariations).games();
-              if (games > 0) {
-                found = new int[] {i, games};
-                break;
-              }
-            }
-          } catch (IOException | RuntimeException e) {
-            LOGGER.warn("Searching the last matching position failed", e);
-          }
-          int[] answer = found;
+          int[] answer = firstMatch(keys, filter, includeVariations);
           callbacks.execute(() -> result.accept(answer));
         });
+  }
+
+  /** A board position as recorded in the game, keyed on the worker thread. */
+  public record BoardPosition(
+      Object identity,
+      featurecat.lizzie.rules.Stone[] stones,
+      featurecat.lizzie.rules.Stone[] parentStones,
+      java.util.Optional<int[]> lastMove,
+      boolean blackToPlay) {}
+
+  /**
+   * Keys of positions already seen, by the game node that holds them, with a hash of the stones
+   * they were computed from: stones edited in place are keyed again (worker thread only).
+   */
+  private final java.util.Map<Object, CachedKey> keyCache = new java.util.WeakHashMap<>();
+
+  private record CachedKey(int stonesHash, PositionKey key) {}
+
+  /** The position's key, from the cache unless its stones changed since it was computed. */
+  PositionKey keyOf(int width, int height, BoardPosition p) {
+    int hash =
+        31
+                * (31 * java.util.Arrays.hashCode(p.stones())
+                    + java.util.Arrays.hashCode(p.parentStones()))
+            + Boolean.hashCode(p.blackToPlay());
+    CachedKey cached = keyCache.get(p.identity());
+    if (cached != null && cached.stonesHash() == hash) return cached.key();
+    PositionKey key =
+        BoardPositionAdapter.canonical(
+                width, height, p.stones(), p.parentStones(), p.lastMove(), p.blackToPlay())
+            .key();
+    keyCache.put(p.identity(), new CachedKey(hash, key));
+    return key;
+  }
+
+  /**
+   * Like {@link #lastMatch}, but the positions' symmetry keys are computed here, off the event
+   * thread, and remembered per game node: walking back through hundreds of positions on every move
+   * made navigating a game stutter.
+   */
+  public void lastMatchOfPositions(
+      int width,
+      int height,
+      List<BoardPosition> positions,
+      OpeningFilter filter,
+      boolean includeVariations,
+      Consumer<int[]> result) {
+    worker.execute(
+        () -> {
+          List<PositionKey> keys = new java.util.ArrayList<>(positions.size());
+          for (BoardPosition p : positions) keys.add(keyOf(width, height, p));
+          int[] answer = firstMatch(keys, filter, includeVariations);
+          callbacks.execute(() -> result.accept(answer));
+        });
+  }
+
+  private int[] firstMatch(List<PositionKey> keys, OpeningFilter filter, boolean variations) {
+    try {
+      OpeningDatabase d = db();
+      for (int i = 0; i < keys.size(); i++) {
+        int games = d.query(keys.get(i), filter, variations).games();
+        if (games > 0) return new int[] {i, games};
+      }
+    } catch (IOException | RuntimeException e) {
+      LOGGER.warn("Searching the last matching position failed", e);
+    }
+    return new int[] {-1, 0};
   }
 
   public void renameCollection(int id, String name, Runnable done) {

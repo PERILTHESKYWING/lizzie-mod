@@ -71,6 +71,29 @@ class BoardHistoryMoveIdentityTest {
     }
   }
 
+  @Test
+  void endFollowsTheMainLineAndStopsBeforeTheEndMarker() {
+    try (BoardSizeScope ignored = BoardSizeScope.open()) {
+      BoardHistoryList history = new BoardHistoryList(BoardData.empty(BOARD_SIZE, BOARD_SIZE));
+      BoardHistoryNode root = history.getCurrentHistoryNode();
+      assertSame(root, history.getEnd());
+      BoardHistoryNode first = new BoardHistoryNode(moveData(0, 0, Stone.BLACK, false, 0, 0));
+      root.add(first);
+      new BoardHistoryNode(moveData(2, 2, Stone.BLACK, false, 0, 0))
+          .reparentAsLastVariationOf(root);
+      BoardHistoryNode second = new BoardHistoryNode(moveData(1, 1, Stone.WHITE, true, 0, 0));
+      first.add(second);
+      BoardData marker = BoardData.empty(BOARD_SIZE, BOARD_SIZE);
+      marker.dummy = true;
+      second.add(new BoardHistoryNode(marker));
+
+      assertSame(second, history.getEnd(), "the variation and the end marker are skipped");
+      assertSame(first, root.nextOrNull());
+      assertSame(null, second.nextOrNull());
+      assertEquals(second.next().orElse(null), second.nextOrNull());
+    }
+  }
+
   private static BoardData moveData(
       int x, int y, Stone color, boolean blackToPlay, int blackCaptures, int whiteCaptures) {
     Stone[] stones = emptyStones();

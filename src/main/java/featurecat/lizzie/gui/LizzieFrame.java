@@ -97,6 +97,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -6212,6 +6213,7 @@ public class LizzieFrame extends JFrame {
   private BufferedImage cachedImage;
   private BufferedImage cachedVarImage;
   private BufferedImage cachedVarImage2;
+  private final AtomicReference<BufferedImage> spareVarImage = new AtomicReference<>();
   private BufferedImage cachedBackground;
   private BufferedImage cachedWinrateImage;
   // Reusable full-window paint buffers. paintMianPanel used to allocate a fresh
@@ -13436,8 +13438,6 @@ public class LizzieFrame extends JFrame {
                     Thread.sleep(150);
                     renderVarTree(vw, vh, true, false);
                   } catch (Exception e) {
-                    // TODO Auto-generated catch block
-                    // e.printStackTrace();
                   }
                 }
               };
@@ -13455,7 +13455,6 @@ public class LizzieFrame extends JFrame {
       forceRecreate = false;
     }
     redrawTree = true;
-    // startTreeRenderTime=System.currentTimeMillis();
     varTreeX = vx;
     varTreeY = vy;
     varTreeW = vw;
@@ -13466,10 +13465,9 @@ public class LizzieFrame extends JFrame {
     if (varTreeMaxY < vh) varTreeMaxY = vh;
     completeDrawTree = false;
     setTreeMaxLimit();
-    cachedVarImage = new BufferedImage(varTreeMaxX, varTreeMaxY, TYPE_INT_ARGB);
+    cachedVarImage = ImageBuffers.blank(spareVarImage.getAndSet(null), varTreeMaxX, varTreeMaxY);
     Graphics2D g0 = (Graphics2D) cachedVarImage.getGraphics();
     g0.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-    // treeNode = Lizzie.board.getHistory().getCurrentHistoryNode();
     canDrawCurColor = false;
     Runnable runnable =
         new Runnable() {
@@ -13478,12 +13476,13 @@ public class LizzieFrame extends JFrame {
               try {
                 drawTree(g0);
               } catch (Exception ee) {
-                //  drawWrong = true;
-                // varTreePane.updateUI();
                 completeDrawTree = true;
                 return;
               }
+              BufferedImage previous = cachedVarImage2;
               cachedVarImage2 = cachedVarImage;
+              if (previous != null && previous != cachedVarImage2)
+                SwingUtilities.invokeLater(() -> spareVarImage.set(previous));
               varTreePane.setPreferredSize(
                   new Dimension(
                       (int) (cachedVarImage2.getWidth() / Lizzie.javaScaleFactor),
@@ -13587,7 +13586,7 @@ public class LizzieFrame extends JFrame {
     redrawTree = false;
     completeDrawTree = false;
     setTreeMaxLimit();
-    cachedVarImage = new BufferedImage(varTreeMaxX, varTreeMaxY, TYPE_INT_ARGB);
+    cachedVarImage = ImageBuffers.blank(spareVarImage.getAndSet(null), varTreeMaxX, varTreeMaxY);
     Graphics2D g0 = (Graphics2D) cachedVarImage.getGraphics();
     g0.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
     canDrawCurColor = false;
@@ -13597,13 +13596,14 @@ public class LizzieFrame extends JFrame {
             try {
               drawTree(g0);
             } catch (Exception ee) {
-              // drawWrong = true;
-              // varTreePane.updateUI();
               completeDrawTree = true;
               return;
             }
 
+            BufferedImage previous = cachedVarImage2;
             cachedVarImage2 = cachedVarImage;
+            if (previous != null && previous != cachedVarImage2)
+              SwingUtilities.invokeLater(() -> spareVarImage.set(previous));
 
             varTreePane.setPreferredSize(
                 new Dimension(

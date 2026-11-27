@@ -620,9 +620,7 @@ public class BoardHistoryList {
 
   public BoardHistoryNode getEnd() {
     BoardHistoryNode e = head;
-    while (e.next().isPresent()) {
-      e = e.next().get();
-    }
+    for (BoardHistoryNode n = e.nextOrNull(); n != null; n = n.nextOrNull()) e = n;
     return e;
   }
 
