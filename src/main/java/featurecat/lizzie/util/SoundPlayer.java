@@ -25,12 +25,56 @@ final class SoundPlayer {
   private SoundPlayer() {}
 
   static void play(String wav) {
-    play(
-        wav,
-        format ->
-            (SourceDataLine)
-                AudioSystem.getLine(
-                    new DataLine.Info(SourceDataLine.class, format, AudioSystem.NOT_SPECIFIED)));
+    play(wav, SoundPlayer::defaultLine);
+  }
+
+  static SourceDataLine defaultLine(AudioFormat format) throws Exception {
+    return (SourceDataLine)
+        AudioSystem.getLine(
+            new DataLine.Info(SourceDataLine.class, format, AudioSystem.NOT_SPECIFIED));
+  }
+
+  /**
+   * The sound as signed 16-bit little-endian samples, or null when it cannot be converted to that
+   * (such sounds keep playing through {@link #play(String)}).
+   */
+  static SoundMixer.Pcm decode(String wav) throws Exception {
+    try (AudioInputStream stream = openStream(wav)) {
+      AudioFormat source = stream.getFormat();
+      AudioFormat target =
+          new AudioFormat(
+              AudioFormat.Encoding.PCM_SIGNED,
+              source.getSampleRate(),
+              16,
+              source.getChannels(),
+              source.getChannels() * 2,
+              source.getSampleRate(),
+              false);
+      AudioInputStream pcm;
+      if (SoundMixer.sameFormat(source, target)) {
+        pcm = stream;
+      } else if (AudioSystem.isConversionSupported(target, source)) {
+        pcm = AudioSystem.getAudioInputStream(target, stream);
+      } else {
+        return null;
+      }
+      byte[] bytes = pcm.readAllBytes();
+      short[] samples = new short[bytes.length / 2];
+      for (int i = 0; i < samples.length; i++) {
+        samples[i] = (short) ((bytes[2 * i] & 0xff) | (bytes[2 * i + 1] << 8));
+      }
+      return new SoundMixer.Pcm(target, samples);
+    }
+  }
+
+  static void reportFailure(Exception failure) {
+    // No message/path from the audio provider is logged; only the failure category is needed.
+    if (FAILURE_REPORTED.compareAndSet(false, true)) {
+      LoggerFactory.getLogger(LogCategories.APP)
+          .warn(
+              "Optional sound playback failed ({}); gameplay and sound preferences unchanged",
+              failure.getClass().getSimpleName());
+    }
   }
 
   static boolean play(String wav, LineProvider provider) {
@@ -52,13 +96,7 @@ final class SoundPlayer {
         line.close();
       }
     } catch (Exception failure) {
-      // No message/path from the audio provider is logged; only the failure category is needed.
-      if (FAILURE_REPORTED.compareAndSet(false, true)) {
-        LoggerFactory.getLogger(LogCategories.APP)
-            .warn(
-                "Optional sound playback failed ({}); gameplay and sound preferences unchanged",
-                failure.getClass().getSimpleName());
-      }
+      reportFailure(failure);
       // A transiently disconnected device may be available for the next move.
       return false;
     }

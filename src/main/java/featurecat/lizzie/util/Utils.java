@@ -13,6 +13,7 @@ import featurecat.lizzie.gui.LizzieFrame;
 import featurecat.lizzie.gui.Message;
 import featurecat.lizzie.gui.RemoteEngineData;
 import featurecat.lizzie.rules.Board;
+import featurecat.lizzie.rules.BoardData;
 import featurecat.lizzie.rules.BoardHistoryNode;
 import featurecat.lizzie.rules.Stone;
 import featurecat.lizzie.rules.Zobrist;
@@ -66,7 +67,6 @@ public class Utils {
   public static String iv = "s6st73f41adc4c5d";
   public static String aesKey2 = "iyekeeay2ueeaesk";
   public static String iv2 = "s6st73f49adc4c5d";
-  private static int msemaphoretryroom = 1;
   private static volatile Consumer<BoardHistoryNode> stoneSoundForTest;
   private static final int MAX_AUTO_KATAGO_THREADS = 16;
   private static final String GTP_CONSOLE_MIGRATION_KEY = "migrated-hide-gtp-console-default-v2";
@@ -1099,54 +1099,24 @@ public class Utils {
       testSound.accept(node);
       return;
     }
-    Runnable runnable =
-        new Runnable() {
-          public void run() {
-            if (msemaphoretryroom < 0) {
-              return;
-            }
-            msemaphoretryroom--;
-            try {
-              if (node.previous().isPresent()) {
-                if (node.getData().blackCaptures > node.previous().get().getData().blackCaptures) {
-                  if (node.getData().blackCaptures - node.previous().get().getData().blackCaptures
-                      >= 3)
-                    playVoice(File.separator + "sound" + File.separator + "deadStoneMore.wav");
-                  else playVoice(File.separator + "sound" + File.separator + "deadStone.wav");
-                } else {
-                  if (node.getData().whiteCaptures
-                      > node.previous().get().getData().whiteCaptures) {
-                    if (node.getData().whiteCaptures - node.previous().get().getData().whiteCaptures
-                        >= 3)
-                      playVoice(File.separator + "sound" + File.separator + "deadStoneMore.wav");
-                    else playVoice(File.separator + "sound" + File.separator + "deadStone.wav");
-                  } else playVoice(File.separator + "sound" + File.separator + "Stone.wav");
-                }
-              } else {
-                playVoice(File.separator + "sound" + File.separator + "Stone.wav");
-              }
-            } catch (Exception e) {
-              // TODO Auto-generated catch block
-              e.printStackTrace();
-            }
-            msemaphoretryroom++;
-          }
-        };
-    Thread thread = new Thread(runnable);
-    thread.start();
+    SoundMixer.shared().play("stone", File.separator + "sound" + File.separator + stoneSound(node));
+  }
+
+  /** Which sound a move makes: a capture of three or more stones, a capture, or a plain stone. */
+  static String stoneSound(BoardHistoryNode node) {
+    if (node.previous().isEmpty()) return "Stone.wav";
+    BoardData now = node.getData();
+    BoardData before = node.previous().get().getData();
+    int captured =
+        now.blackCaptures > before.blackCaptures
+            ? now.blackCaptures - before.blackCaptures
+            : Math.max(0, now.whiteCaptures - before.whiteCaptures);
+    return captured >= 3 ? "deadStoneMore.wav" : captured > 0 ? "deadStone.wav" : "Stone.wav";
   }
 
   public static void playByoyomi(int seconds) {
-    try {
-      playVoice(File.separator + "sound" + File.separator + seconds + ".wav");
-    } catch (Exception e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
-  }
-
-  private static void playVoice(String wav) {
-    SoundPlayer.play(wav);
+    SoundMixer.shared()
+        .play("countdown", File.separator + "sound" + File.separator + seconds + ".wav");
   }
 
   private static Path getDistFile(String path, String newFolderName) throws IOException {

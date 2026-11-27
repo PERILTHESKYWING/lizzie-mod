@@ -29,6 +29,29 @@ final class ImageBuffers {
   }
 
   /**
+   * {@code image} as an opaque TYPE_INT_RGB image when every pixel is fully opaque, otherwise
+   * {@code image} itself. Drawing an opaque image is a plain copy, while an image with an alpha
+   * channel goes through per-pixel blending even when nothing is transparent; the pixels drawn are
+   * the same.
+   */
+  static BufferedImage opaqueCopyIfOpaque(BufferedImage image) {
+    if (image.getType() != BufferedImage.TYPE_INT_ARGB) return image;
+    int w = image.getWidth();
+    int h = image.getHeight();
+    int[] row = new int[w];
+    for (int y = 0; y < h; y++) {
+      image.getRaster().getDataElements(0, y, w, 1, row);
+      for (int p : row) if (p >>> 24 != 0xff) return image;
+    }
+    BufferedImage opaque = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+    Graphics2D g = opaque.createGraphics();
+    g.setComposite(AlphaComposite.Src);
+    g.drawImage(image, 0, 0, null);
+    g.dispose();
+    return opaque;
+  }
+
+  /**
    * Whether user space maps onto whole device pixels (no scaling, rotation or fractional shift), so
    * a cached sprite drawn there looks exactly like painting the shapes directly. Elsewhere the
    * sprite would be resampled, so callers paint the vector shapes instead.

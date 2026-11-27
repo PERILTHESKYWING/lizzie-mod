@@ -1021,6 +1021,7 @@ public class BoardRenderer {
         }
       }
       g.dispose();
+      cachedBackgroundImage = ImageBuffers.opaqueCopyIfOpaque(cachedBackgroundImage);
       reDrawAllSelectedRect();
       if (Lizzie.frame.isInScoreMode)
         if (Lizzie.board.boardGroupInfo != null) this.drawScore(Lizzie.board.boardGroupInfo);
@@ -1029,8 +1030,6 @@ public class BoardRenderer {
 
     g0.setRenderingHint(KEY_ANTIALIASING, VALUE_ANTIALIAS_OFF);
     g0.drawImage(cachedBackgroundImage, x, y, null);
-    // cachedX = x;
-    //  cachedY = y;
   }
 
   /**
