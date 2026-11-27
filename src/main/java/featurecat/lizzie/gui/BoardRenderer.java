@@ -1063,17 +1063,18 @@ public class BoardRenderer {
     }
   }
 
-  public void removedrawmovestone() {
-    cachedStonesImagedraged = new BufferedImage(boardWidth, boardHeight, TYPE_INT_ARGB);
-    cachedStonesShadowImagedraged = new BufferedImage(boardWidth, boardHeight, TYPE_INT_ARGB);
+  public void removedrawmovestone() { // nothing to draw: the shared empty image, no allocation
+    cachedStonesImagedraged = emptyImage;
+    cachedStonesShadowImagedraged = emptyImage;
     if (Lizzie.config.isDoubleEngineMode()) {
       if (this == LizzieFrame.boardRenderer) LizzieFrame.boardRenderer2.removedrawmovestone();
     }
   }
 
   public void drawmovestone(int x, int y, Stone stone) {
-    cachedStonesImagedraged = new BufferedImage(boardWidth, boardHeight, TYPE_INT_ARGB);
-    cachedStonesShadowImagedraged = new BufferedImage(boardWidth, boardHeight, TYPE_INT_ARGB);
+    cachedStonesImagedraged = ImageBuffers.blank(cachedStonesImagedraged, boardWidth, boardHeight);
+    cachedStonesShadowImagedraged =
+        ImageBuffers.blank(cachedStonesShadowImagedraged, boardWidth, boardHeight);
     Graphics2D g = cachedStonesImagedraged.createGraphics();
     Graphics2D gShadow = cachedStonesShadowImagedraged.createGraphics();
     gShadow.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
@@ -1155,8 +1156,8 @@ public class BoardRenderer {
     needDrawSelectImageAll = false;
   }
 
-  public void removeKataEstimateImage() {
-    kataEstimateImage = new BufferedImage(boardWidth, boardHeight, TYPE_INT_ARGB);
+  public void removeKataEstimateImage() { // nothing to draw: the shared empty image
+    kataEstimateImage = emptyImage;
   }
 
   public static int roundToInt(double number) {
@@ -1343,8 +1344,9 @@ public class BoardRenderer {
         || !cachedZhash.equals(data.zobrist)
         || cachedShowCoords != showCoordinates()) {
       cachedZhash = data.zobrist.clone();
-      cachedStonesImage = new BufferedImage(boardWidth, boardHeight, TYPE_INT_ARGB);
-      cachedStonesShadowImage = new BufferedImage(boardWidth, boardHeight, TYPE_INT_ARGB);
+      cachedStonesImage = ImageBuffers.blank(cachedStonesImage, boardWidth, boardHeight);
+      cachedStonesShadowImage =
+          ImageBuffers.blank(cachedStonesShadowImage, boardWidth, boardHeight);
       Graphics2D g = cachedStonesImage.createGraphics();
       g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
       Graphics2D gShadow = cachedStonesShadowImage.createGraphics();
@@ -4013,10 +4015,6 @@ public class BoardRenderer {
   private void fillCircle(Graphics2D g, int centerX, int centerY, int radius) {
     g.fillOval(centerX - radius, centerY - radius, 2 * radius + 1, 2 * radius + 1);
   }
-
-  //  private void fillCircleBest(Graphics2D g, int centerX, int centerY, int radius) {
-  //    g.fillOval(centerX - radius - 1, centerY - radius - 1, 2 * radius + 3, 2 * radius + 3);
-  //  }
 
   /** Draws the outline of a circle centered at (centerX, centerY) with radius $radius$ */
   private void drawCircle(Graphics2D g, int centerX, int centerY, int radius) {

@@ -4,6 +4,8 @@ All notable maintenance updates to this fork are documented here.
 
 ## Unreleased
 
+- Smoother board with analysis running, with no change in how anything looks: stones' glass highlights and the players' names are drawn from cached images instead of being repainted shape by shape; the board, variation tree and stone layers reuse their buffers instead of allocating new full-size images on every move (which caused frequent garbage-collector pauses); the board wood is kept in a layout Java2D paints quickly under candidate moves; stone images are decoded once per theme and scaled with exact area averaging several times faster; the Opening Explorer's position lookup moved off the UI thread. In a profile of browsing a 250-move game with heavy analysis, UI-thread work fell by about a third and garbage-collector pauses by half.
+
 - Tidier top toolbar: by default it shows only Fox Kifu, Strength, Komi, Rules, Re-analyse, New game, Goban, Hawk eye, Search features and the new Update mod, Update AI model and Theme buttons; everything else stays in the menus, and ⚙ picks your own set (saved as a list of buttons to show). PDA and Breadth leave the toolbar once and can be shown again through Search features. The small variation board now follows a theme switch at once and uses the theme's stones, and the realistic themes mark the last move with a circle like the default board (their installed copies refresh automatically).
 
 - Re-analyse button next to Rules in the top toolbar (also Ctrl+B): analyses the whole game again with the current komi and rules. Moves analysed before a komi or rule change are now redone instead of skipped, so the winrate graph is right without stepping through the game.

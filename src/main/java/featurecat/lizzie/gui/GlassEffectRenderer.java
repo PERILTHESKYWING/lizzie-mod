@@ -11,6 +11,7 @@ import java.awt.GradientPaint;
 import java.awt.Graphics2D;
 import java.awt.Paint;
 import java.awt.RadialGradientPaint;
+import java.awt.RenderingHints;
 import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.util.Collections;
@@ -266,7 +267,57 @@ public class GlassEffectRenderer {
     g.setPaint(oldPaint);
   }
 
+  /** Margin around a cached highlight sprite, so anti-aliased edges are kept. */
+  private static final int SPRITE_PAD = 1;
+
+  private static final java.util.Map<Integer, java.awt.image.BufferedImage> HIGHLIGHTS =
+      new java.util.LinkedHashMap<>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(
+            java.util.Map.Entry<Integer, java.awt.image.BufferedImage> eldest) {
+          return size() > 24;
+        }
+      };
+
+  /**
+   * The glass highlight of a stone. It depends only on the radius and colour, so it is painted once
+   * into a sprite and stamped onto every stone (painting radial gradients for each stone on every
+   * redraw was the main cost of drawing a full board).
+   */
   public static void drawStoneHighlight(
+      Graphics2D g, int centerX, int centerY, int stoneRadius, boolean isBlack) {
+    if (stoneRadius <= 0) return;
+    if (!ImageBuffers.pixelAligned(g)) {
+      paintStoneHighlight(g, centerX, centerY, stoneRadius, isBlack);
+      return;
+    }
+    g.drawImage(
+        highlightSprite(stoneRadius, isBlack),
+        centerX - stoneRadius - SPRITE_PAD,
+        centerY - stoneRadius - SPRITE_PAD,
+        null);
+  }
+
+  static synchronized java.awt.image.BufferedImage highlightSprite(
+      int stoneRadius, boolean isBlack) {
+    int key = stoneRadius * 2 + (isBlack ? 1 : 0);
+    java.awt.image.BufferedImage sprite = HIGHLIGHTS.get(key);
+    if (sprite == null) {
+      int size = stoneRadius * 2 + 1 + 2 * SPRITE_PAD;
+      sprite =
+          new java.awt.image.BufferedImage(size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+      Graphics2D sg = sprite.createGraphics();
+      sg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+      sg.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+      int c = stoneRadius + SPRITE_PAD;
+      paintStoneHighlight(sg, c, c, stoneRadius, isBlack);
+      sg.dispose();
+      HIGHLIGHTS.put(key, sprite);
+    }
+    return sprite;
+  }
+
+  static void paintStoneHighlight(
       Graphics2D g, int centerX, int centerY, int stoneRadius, boolean isBlack) {
     Point2D highlightCenter =
         new Point2D.Float(centerX - stoneRadius * 0.3f, centerY - stoneRadius * 0.3f);

@@ -3,6 +3,7 @@ package featurecat.lizzie.theme;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.image.BufferedImage;
@@ -73,6 +74,40 @@ class BundledThemesTest {
     } finally {
       Theme.pathPrefix = previous;
     }
+  }
+
+  @Test
+  void stoneImagesAreDecodedOncePerThemeAsIntRasters(@TempDir Path root) throws Exception {
+    BundledThemes.install(root);
+    String previous = Theme.pathPrefix;
+    try {
+      Theme.pathPrefix = root.toString() + java.io.File.separator;
+      Theme theme = new Theme();
+      assertTrue(theme.getTheme(new JSONObject().put("theme", "Hon-kaya")));
+      List<BufferedImage> whites = theme.stoneVariants(false);
+      assertSame(whites, theme.stoneVariants(false), "every board shares one decoded set");
+      assertEquals(BufferedImage.TYPE_INT_ARGB, whites.get(0).getType());
+      assertEquals(BufferedImage.TYPE_INT_RGB, theme.board().getType(), "fast texture painting");
+    } finally {
+      Theme.pathPrefix = previous;
+    }
+  }
+
+  @Test
+  void intRastersKeepEveryPixel() {
+    for (int type : new int[] {BufferedImage.TYPE_3BYTE_BGR, BufferedImage.TYPE_4BYTE_ABGR}) {
+      BufferedImage decoded = new BufferedImage(7, 5, type);
+      java.util.Random random = new java.util.Random(type);
+      for (int y = 0; y < 5; y++) {
+        for (int x = 0; x < 7; x++) decoded.setRGB(x, y, random.nextInt());
+      }
+      BufferedImage fast = Theme.intRaster(decoded);
+      for (int y = 0; y < 5; y++) {
+        for (int x = 0; x < 7; x++) assertEquals(decoded.getRGB(x, y), fast.getRGB(x, y));
+      }
+    }
+    BufferedImage grey = new BufferedImage(3, 3, BufferedImage.TYPE_BYTE_GRAY);
+    assertSame(grey, Theme.intRaster(grey), "other layouts are left alone");
   }
 
   @Test
