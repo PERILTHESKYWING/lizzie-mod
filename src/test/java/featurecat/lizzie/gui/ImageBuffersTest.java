@@ -41,6 +41,22 @@ class ImageBuffersTest {
   }
 
   @Test
+  void anOpaqueBackgroundIsStoredWithoutAlphaAndKeepsItsPixels() {
+    BufferedImage board = new BufferedImage(30, 20, BufferedImage.TYPE_INT_ARGB);
+    java.util.Random random = new java.util.Random(1);
+    for (int y = 0; y < 20; y++) {
+      for (int x = 0; x < 30; x++) board.setRGB(x, y, 0xff000000 | random.nextInt(0xffffff));
+    }
+    BufferedImage opaque = ImageBuffers.opaqueCopyIfOpaque(board);
+    assertEquals(BufferedImage.TYPE_INT_RGB, opaque.getType());
+    for (int y = 0; y < 20; y++) {
+      for (int x = 0; x < 30; x++) assertEquals(board.getRGB(x, y), opaque.getRGB(x, y));
+    }
+    board.setRGB(3, 3, 0x80ffffff);
+    assertSame(board, ImageBuffers.opaqueCopyIfOpaque(board), "transparency is kept");
+  }
+
+  @Test
   void onlyWholePixelTransformsCountAsAligned() {
     Graphics2D g = new BufferedImage(4, 4, BufferedImage.TYPE_INT_ARGB).createGraphics();
     assertTrue(ImageBuffers.pixelAligned(g));

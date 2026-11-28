@@ -714,6 +714,12 @@ public class LizzieFrame extends JFrame {
             Utils.ajustScale(g);
             paintMianPanel(g);
           }
+
+          @Override
+          public void repaint(long tm, int x, int y, int width, int height) {
+            frameCurrent = false; // asked for directly: the content changed
+            super.repaint(tm, x, y, width, height);
+          }
         };
     mainPanel.enableInputMethods(false);
 
@@ -1602,16 +1608,6 @@ public class LizzieFrame extends JFrame {
         1,
         TimeUnit.SECONDS);
 
-    //    updateTitleSchedual.scheduleAtFixedRate(
-    //        new Runnable() {
-    //          @Override
-    //          public void run() {
-    //            updateTitle();
-    //          }
-    //        },
-    //        1000,
-    //        300,
-    //        TimeUnit.MILLISECONDS);
     mainPanel.addMouseMotionListener(input);
     toolbar.addMouseWheelListener(input);
     addInput(false);
@@ -2578,38 +2574,6 @@ public class LizzieFrame extends JFrame {
           lastPlayouts = visitsTemp[3].Playouts;
           return 1;
         } else return -1;
-        //	  case 4:
-        //		  if(curNode==visitsTemp[0].node)
-        //		  {
-        //			  lastPlayouts=visitsTemp[0].Playouts;
-        //			  return 5;
-        //		  }
-        //			  else
-        //				  if(curNode==visitsTemp[1].node)
-        //				  {
-        //					  lastPlayouts=visitsTemp[1].Playouts;
-        //					  return 4;
-        //				  }
-        //				  else
-        //					  if(curNode==visitsTemp[2].node)
-        //					  {
-        //						  lastPlayouts=visitsTemp[2].Playouts;
-        //						  return 3;
-        //					  }
-        //					  else
-        //						  if(curNode==visitsTemp[3].node)
-        //						  {
-        //							  lastPlayouts=visitsTemp[3].Playouts;
-        //							  return 2;
-        //						  }
-        //						  else
-        //							  if(curNode==visitsTemp[4].node)
-        //							  {
-        //								  lastPlayouts=visitsTemp[4].Playouts;
-        //								  return 1;
-        //							  }
-        //						  else
-        //							  return -1;
     }
     return -1;
   }
@@ -2667,31 +2631,6 @@ public class LizzieFrame extends JFrame {
     //  onlineDialog = new OnlineDialog();
 
   }
-
-  //  public void openEditToolbar() {
-  //	  editToolbar = new EditToolbar(this);
-  //	  editToolbar.setVisible(true);
-  //	  if((mainPanel.getWidth()/2-30)<400)
-  //		  editToolbar.setLocation(this.getX()+400,this.getY()+ this.getInsets().top);
-  //	  else
-  //	  editToolbar.setLocation(this.getX()+mainPanel.getWidth()/2-30,this.getY()+
-  // this.getInsets().top);
-  //	  }
-  //  public void resetEditToolbarLocation(){
-  //	  if((mainPanel.getWidth()/2-30)<400)
-  //		  editToolbar.setLocation(this.getX()+400,this.getY()+ this.getInsets().top);
-  //	  else
-  //	  editToolbar.setLocation(this.getX()+mainPanel.getWidth()/2-30,this.getY()+
-  // this.getInsets().top);
-  //	  }
-
-  //  public static void openConfigDialog() {
-  //    boolean oriPonder = Lizzie.leelaz != null && Lizzie.leelaz.isPondering();
-  //    if (Lizzie.leelaz != null && Lizzie.leelaz.isPondering()) Lizzie.leelaz.togglePonder();
-  //    ConfigDialog configDialog = new ConfigDialog();
-  //    configDialog.setVisible(true);
-  //    if (oriPonder) Lizzie.leelaz.togglePonder();
-  //  }
 
   void refreshSuggestionTableStyle() {
     if (!SwingUtilities.isEventDispatchThread()) {
@@ -3053,11 +2992,6 @@ public class LizzieFrame extends JFrame {
   }
 
   public static void openMoreEngineDialog() {
-    //    boolean oriPonder = Lizzie.leelaz != null && Lizzie.leelaz.isPondering();
-    //    if (Lizzie.leelaz != null && Lizzie.leelaz.isPondering()) Lizzie.leelaz.togglePonder();
-    //    ConfigDialog configDialog = new ConfigDialog();
-    //    configDialog.setVisible(true);
-    //    if (oriPonder) Lizzie.leelaz.togglePonder();
     boolean oriPonder = Lizzie.leelaz != null && Lizzie.leelaz.isPondering();
     if (Lizzie.leelaz != null && Lizzie.leelaz.isPondering()) Lizzie.leelaz.togglePonder();
     JDialog moreEngines;
@@ -3091,12 +3025,6 @@ public class LizzieFrame extends JFrame {
 
       return false;
     }
-    //    if (isPlayingAgainstLeelaz) {
-    //
-    //      return true;
-    //    }
-    // if (Lizzie.leelaz.isPondering()) {
-    // }
 
     int[] coords = boardCoordinates.get();
 
@@ -6211,6 +6139,21 @@ public class LizzieFrame extends JFrame {
   }
 
   private BufferedImage cachedImage;
+  private final FrameBuffers frameBuffers = new FrameBuffers();
+  private final DirtyRepaint dirtyRepaint = new DirtyRepaint();
+  private final ScreenFrame screenFrame = new ScreenFrame();
+
+  /** While analysing, the whole panel is redrawn at least this often; boards in between. */
+  private static final long FULL_REDRAW_WHILE_ANALYSING_NANOS = 2_000_000_000L;
+
+  private long lastFullRedrawNanos;
+
+  /** Where the last full frame drew the winrate and score box. */
+  private Rectangle moveStatisticsArea;
+
+  /** Whether the shown frame image is up to date (false after a repaint of the panel itself). */
+  private boolean frameCurrent;
+
   private BufferedImage cachedVarImage;
   private BufferedImage cachedVarImage2;
   private final AtomicReference<BufferedImage> spareVarImage = new AtomicReference<>();
@@ -6221,8 +6164,6 @@ public class LizzieFrame extends JFrame {
   // ponders), creating tens of MB/s of garbage. acquire always returns the buffer
   // NOT currently published in `cachedImage`, so the on-screen image (also read by
   // screenshot/web-board helpers) is never drawn into.
-  private BufferedImage paintBufferA;
-  private BufferedImage paintBufferB;
   private final VariationTreeImage variationTreeImages = new VariationTreeImage();
   private VariationTreeImage.View requestedVariationTreeView;
   private VariationTreeImage.Result publishedVariationTree;
@@ -6231,55 +6172,57 @@ public class LizzieFrame extends JFrame {
   public boolean redrawBackgroundAnyway = false;
 
   private BufferedImage acquirePaintBuffer(int width, int height) {
-    boolean intoA = cachedImage != paintBufferA || paintBufferA == null;
-    BufferedImage buffer = intoA ? paintBufferA : paintBufferB;
-    if (buffer == null || buffer.getWidth() != width || buffer.getHeight() != height) {
-      buffer = new BufferedImage(width, height, TYPE_INT_ARGB);
-      if (intoA) paintBufferA = buffer;
-      else paintBufferB = buffer;
-    } else {
-      Graphics2D g = buffer.createGraphics();
-      g.setComposite(AlphaComposite.Clear);
-      g.fillRect(0, 0, width, height);
-      g.dispose();
-    }
-    return buffer;
+    return frameBuffers.forFullRedraw(cachedImage, width, height);
   }
 
-  /** Copies the published frame into the spare buffer before repainting dynamic board surfaces. */
-  private BufferedImage acquireIncrementalPaintBuffer(int width, int height) {
-    boolean intoA = cachedImage != paintBufferA || paintBufferA == null;
-    BufferedImage buffer = intoA ? paintBufferA : paintBufferB;
-    if (buffer == null || buffer.getWidth() != width || buffer.getHeight() != height) {
-      buffer = new BufferedImage(width, height, TYPE_INT_ARGB);
-      if (intoA) paintBufferA = buffer;
-      else paintBufferB = buffer;
-    }
-    Graphics2D graphics = buffer.createGraphics();
-    graphics.setComposite(AlphaComposite.Src);
-    graphics.drawImage(cachedImage, 0, 0, null);
-    graphics.dispose();
-    return buffer;
+  /** The board renderers an incremental frame redraws. */
+  private List<Object> dynamicBoardSurfaces() {
+    List<Object> surfaces = new ArrayList<>(6);
+    surfaces.add(boardRenderer);
+    if (boardRenderer2 != null) surfaces.add(boardRenderer2);
+    boolean fourSub = Lizzie.config.isFourSubMode();
+    if (Lizzie.config.showSubBoard || fourSub) surfaces.add(subBoardRenderer);
+    if (fourSub)
+      surfaces.addAll(Arrays.asList(subBoardRenderer2, subBoardRenderer3, subBoardRenderer4));
+    return surfaces;
+  }
+
+  /** Union of the board surfaces an incremental frame redraws; null before the first layout. */
+  private Rectangle dynamicBoardSurfaceBounds() {
+    Rectangle r = null;
+    for (Object surface : dynamicBoardSurfaces())
+      r = DirtyRepaint.union(r, DirtyRepaint.bounds(surface));
+    return r;
+  }
+
+  /** Repaints only the boards (and the winrate graph) when that is all that changed. */
+  private void repaintDynamicRegions(boolean graph) {
+    Rectangle dirty = DirtyRepaint.union(dynamicBoardSurfaceBounds(), moveStatisticsArea);
+    if (dirty != null && graph) dirty = dirty.union(new Rectangle(grx, gry, grw, grh));
+    DirtyRepaint.repaint(mainPanel, dirty, Config.isScaled, Lizzie.isMultiScreen);
   }
 
   private void redrawDynamicBoardSurfaces(BufferedImage target) {
     Graphics2D graphics = target.createGraphics();
     try {
-      redrawDynamicBoardSurface(graphics, boardRenderer);
-      if (boardRenderer2 != null) {
-        redrawDynamicBoardSurface(graphics, boardRenderer2);
-      }
-      if (Lizzie.config.showSubBoard || Lizzie.config.isFourSubMode()) {
-        redrawDynamicBoardSurface(graphics, subBoardRenderer);
-      }
-      if (Lizzie.config.isFourSubMode()) {
-        redrawDynamicBoardSurface(graphics, subBoardRenderer2);
-        redrawDynamicBoardSurface(graphics, subBoardRenderer3);
-        redrawDynamicBoardSurface(graphics, subBoardRenderer4);
+      for (Object surface : dynamicBoardSurfaces()) {
+        if (surface instanceof BoardRenderer board) redrawDynamicBoardSurface(graphics, board);
+        else if (surface instanceof SubBoardRenderer sub) redrawDynamicBoardSurface(graphics, sub);
       }
     } finally {
       graphics.dispose();
     }
+  }
+
+  /** The winrate and score box follows the analysis like the boards do. */
+  private void redrawMoveStatistics(BufferedImage target, Rectangle area) {
+    Graphics2D g = target.createGraphics();
+    g.setClip(area);
+    g.setComposite(AlphaComposite.Clear);
+    g.fill(area);
+    g.setComposite(AlphaComposite.SrcOver);
+    drawMoveStatistics(g, area.x, area.y, area.width, area.height);
+    g.dispose();
   }
 
   private void redrawDynamicBoardSurface(Graphics2D graphics, BoardRenderer renderer) {
@@ -6312,6 +6255,7 @@ public class LizzieFrame extends JFrame {
    * @param g0 not used
    */
   public void paintMianPanel(Graphics g0) {
+    boolean fullRedraw = false;
     int panelWidth = mainPanel.getWidth();
     int panelHeight = mainPanel.getHeight();
     boolean canPaintIncrementally =
@@ -6319,16 +6263,31 @@ public class LizzieFrame extends JFrame {
             && cachedImage != null
             && cachedImage.getWidth() == panelWidth
             && cachedImage.getHeight() == panelHeight;
-    if (canPaintIncrementally
-        && (redrawBoardSurfacesOnly
-            || redrawWinratePaneOnly
-            || (redrawVariationTreeOnly
-                && publishedVariationTree != null
-                && isCurrentVariationTreeView(publishedVariationTree.view())))) {
+    DirtyRepaint.Paint paint =
+        DirtyRepaint.decide(
+            canPaintIncrementally,
+            frameCurrent,
+            DirtyRepaint.partial(g0, cachedImage),
+            (redrawBoardSurfacesOnly
+                    || redrawWinratePaneOnly
+                    || (redrawVariationTreeOnly
+                        && publishedVariationTree != null
+                        && isCurrentVariationTreeView(publishedVariationTree.view())))
+                // now and then everything, for what else follows the engine
+                && System.nanoTime() - lastFullRedrawNanos < FULL_REDRAW_WHILE_ANALYSING_NANOS);
+    if (paint == DirtyRepaint.Paint.SHOW_FRAME) {
+      // Only a component on top (the comment, a list) repainted: show the frame drawn already.
+    } else if (paint == DirtyRepaint.Paint.INCREMENTAL) {
+      frameCurrent = true;
       if (redrawBoardSurfacesOnly) {
-        BufferedImage incrementalFrame = acquireIncrementalPaintBuffer(panelWidth, panelHeight);
+        Rectangle stats = moveStatisticsArea; // null unless the last full frame drew it
+        Rectangle dirty = DirtyRepaint.union(dynamicBoardSurfaceBounds(), stats);
+        BufferedImage incrementalFrame =
+            frameBuffers.forIncremental(cachedImage, panelWidth, panelHeight, dirty);
         redrawDynamicBoardSurfaces(incrementalFrame);
+        if (stats != null) redrawMoveStatistics(incrementalFrame, stats);
         cachedImage = incrementalFrame;
+        screenFrame.changed(cachedImage, dirty);
         redrawBoardSurfacesOnly = false;
       }
       if (redrawWinratePaneOnly) {
@@ -6336,6 +6295,10 @@ public class LizzieFrame extends JFrame {
         redrawWinratePaneOnly = false;
       }
     } else {
+      fullRedraw = true;
+      frameCurrent = true;
+      moveStatisticsArea = null; // set again where this layout draws it
+      lastFullRedrawNanos = System.nanoTime();
       redrawBoardSurfacesOnly = false;
       redrawWinratePaneOnly = false;
       isSmallCap = false;
@@ -7708,11 +7671,13 @@ public class LizzieFrame extends JFrame {
         // cleanup
         g.dispose();
         this.cachedImage = cachedImage;
+        screenFrame.changed(cachedImage, null);
       }
     }
 
+    dirtyRepaint.afterPaint(mainPanel, g0, cachedImage, fullRedraw);
     g0.drawImage(cachedBackground, 0, 0, null);
-    g0.drawImage(cachedImage, 0, 0, null);
+    screenFrame.draw((Graphics2D) g0, cachedImage);
     if (Lizzie.config.showWinrateGraph && cachedWinrateImage != null && !showControls)
       g0.drawImage(cachedWinrateImage, grx, gry, null);
     redrawVariationTreeOnly = false;
@@ -8015,7 +7980,7 @@ public class LizzieFrame extends JFrame {
         refreshFromInfo = true;
         redrawWinratePaneOnly = true;
         redrawBoardSurfacesOnly = true;
-        if (mainPanel != null) mainPanel.repaint();
+        if (mainPanel != null) repaintDynamicRegions(true);
         if (listTable != null && listTable.isVisible()) listTable.repaint();
         if (analysisSidebarRefreshCoalescer != null) analysisSidebarRefreshCoalescer.request();
         notifyWebBoard(true);
@@ -8597,6 +8562,7 @@ public class LizzieFrame extends JFrame {
   }
 
   private void drawMoveStatistics(Graphics2D g, int posX, int posY, int width, int height) {
+    moveStatisticsArea = new Rectangle(posX, posY, width, height);
     if (width < 10 || height < 5) return;
     g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
     if (isInPlayMode()) {
